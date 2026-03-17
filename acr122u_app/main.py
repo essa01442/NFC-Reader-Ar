@@ -8,6 +8,8 @@ def main():
     window = AppMainWindow()
     window.show()
 
+    app.aboutToQuit.connect(window.nfc_manager.cleanup)
+
     sys.exit(app.exec())
 
 if __name__ == '__main__':

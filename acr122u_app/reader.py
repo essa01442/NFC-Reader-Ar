@@ -22,7 +22,7 @@ class NFCReaderManager(QObject):
     reader_connected = pyqtSignal(str)
     reader_disconnected = pyqtSignal()
     card_detected = pyqtSignal(str) # UID
-    card_removed = pyqtSignal()
+    card_removed_signal = pyqtSignal()
     error_occurred = pyqtSignal(str)
 
     def __init__(self):
@@ -81,7 +81,7 @@ class NFCReaderManager(QObject):
 
     def card_removed(self, card):
         self.connection = None
-        self.card_removed.emit()
+        self.card_removed_signal.emit()
 
     def read_block(self, block_num):
         if not self.connection:
