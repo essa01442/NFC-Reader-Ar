@@ -33,9 +33,9 @@ def test_hex_validation_logic():
 
 def test_rescan_logic():
     from reader import NFCReaderManager
-    # Just verify that rescan updates the threading event
-    with patch('reader.CardMonitor'), patch('threading.Thread'):
+    # Just verify that rescan manually updates the reader list
+    with patch('reader.CardMonitor'), patch('reader.ReaderMonitor'):
         manager = NFCReaderManager()
-        assert not manager.force_scan_event.is_set()
-        manager.rescan_readers()
-        assert manager.force_scan_event.is_set()
+        with patch.object(manager, 'update_readers_list') as mock_update:
+            manager.rescan_readers()
+            mock_update.assert_called_once()

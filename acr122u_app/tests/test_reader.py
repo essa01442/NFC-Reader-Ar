@@ -17,8 +17,8 @@ from reader import NFCReaderManager
 
 @pytest.fixture
 def reader_manager():
-    # Mock CardMonitor and threading to prevent background execution during tests
-    with patch('reader.CardMonitor'), patch('threading.Thread'):
+    # Mock monitors to prevent background thread execution and PC/SC crashes during tests
+    with patch('reader.CardMonitor'), patch('reader.ReaderMonitor'):
         manager = NFCReaderManager()
         yield manager
 
@@ -136,9 +136,9 @@ def test_discovery_no_readers_error(reader_manager):
         assert "pcsc" in error_msg.lower() or "smart card" in error_msg.lower()
 
 def test_rescan_trigger(reader_manager):
-    assert not reader_manager.force_scan_event.is_set()
-    reader_manager.rescan_readers()
-    assert reader_manager.force_scan_event.is_set()
+    with patch.object(reader_manager, 'update_readers_list') as mock_update:
+        reader_manager.rescan_readers()
+        mock_update.assert_called_once()
 
 def test_write_block_success(reader_manager):
     reader_manager.connection = Mock()

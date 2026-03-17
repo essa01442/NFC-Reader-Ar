@@ -1,14 +1,13 @@
-import threading
-import time
 import platform
 import traceback
 from smartcard.System import readers
 from smartcard.util import toHexString
 from smartcard.CardMonitoring import CardMonitor, CardObserver
+from smartcard.ReaderMonitoring import ReaderMonitor, ReaderObserver
 from smartcard.Exceptions import CardConnectionException, NoCardException, ListReadersException
 from PyQt6.QtCore import QObject, pyqtSignal
 
-class NFCObserver(CardObserver):
+class NFCCardObserver(CardObserver):
     def __init__(self, manager):
         self.manager = manager
 
@@ -18,6 +17,15 @@ class NFCObserver(CardObserver):
             self.manager.card_inserted(card)
         for card in removedcards:
             self.manager.card_removed(card)
+
+class NFCReaderObserver(ReaderObserver):
+    def __init__(self, manager):
+        self.manager = manager
+
+    def update(self, observable, actions):
+        (addedreaders, removedreaders) = actions
+        if addedreaders or removedreaders:
+            self.manager.update_readers_list()
 
 class NFCReaderManager(QObject):
     # Signals for UI updates
@@ -34,19 +42,63 @@ class NFCReaderManager(QObject):
         self.reader = None
         self.all_readers = []
         self.connection = None
-        self.monitor = CardMonitor()
-        self.observer = NFCObserver(self)
-        self.monitor.addObserver(self.observer)
-        self.is_running = True
-        self.force_scan_event = threading.Event()
 
-        # Start a thread to keep looking for readers if not found
-        self.search_thread = threading.Thread(target=self._search_for_reader, daemon=True)
-        self.search_thread.start()
+        # Monitors
+        self.card_monitor = None
+        self.card_observer = NFCCardObserver(self)
+        self.reader_monitor = None
+        self.reader_observer = NFCReaderObserver(self)
+
+        self.is_running = True
+
+        self._init_monitors()
+
+    def _init_monitors(self):
+        try:
+            if not self.reader_monitor:
+                self.reader_monitor = ReaderMonitor()
+                self.reader_monitor.addObserver(self.reader_observer)
+
+            if not self.card_monitor:
+                self.card_monitor = CardMonitor()
+                self.card_monitor.addObserver(self.card_observer)
+        except Exception as e:
+            err_repr = repr(e)
+            hint = self._get_pcsc_error_hint(e)
+            self.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
+
+    def update_readers_list(self):
+        try:
+            current_readers = readers()
+
+            # Allow all readers without strict name filtering so any connected reader works
+            self.all_readers = current_readers
+
+            reader_names = [str(r) for r in self.all_readers]
+            self.available_readers_changed.emit(reader_names)
+
+            if self.all_readers:
+                if self.reader not in self.all_readers:
+                    # Select the first available reader if none is selected
+                    self.reader = self.all_readers[0]
+                    self.reader_connected.emit(str(self.reader))
+            else:
+                if self.reader is not None:
+                    self.reader = None
+                    self.connection = None
+                    self.reader_disconnected.emit()
+
+        except Exception as e:
+            err_repr = repr(e)
+            hint = self._get_pcsc_error_hint(e)
+            self.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
 
     def rescan_readers(self):
         """Manually trigger a scan immediately."""
-        self.force_scan_event.set()
+        self.update_readers_list()
+        # Optionally re-init monitors if they failed previously
+        if not self.reader_monitor or not self.card_monitor:
+            self._init_monitors()
 
     def select_reader(self, reader_name):
         """Set the active reader from UI combo box."""
@@ -65,49 +117,6 @@ class NFCReaderManager(QObject):
         if not is_running:
             return msg
         return f"تأكد من توصيل القارئ أو صلاحيات الوصول. ({msg})"
-
-    def _search_for_reader(self):
-        backoff = 1.0
-        max_backoff = 5.0
-
-        while self.is_running:
-            try:
-                available_readers = readers()
-                # reset backoff on success
-                backoff = 1.0
-
-                # Match "acr" or "122" case-insensitive
-                target_readers = [r for r in available_readers if "acr" in str(r).lower() or "122" in str(r).lower()]
-
-                current_reader_names = [str(r) for r in target_readers]
-                old_reader_names = [str(r) for r in self.all_readers]
-
-                if current_reader_names != old_reader_names:
-                    self.all_readers = target_readers
-                    self.available_readers_changed.emit(current_reader_names)
-
-                if target_readers:
-                    # Auto-select the first one if we don't have an active reader, or if our active reader is lost
-                    if self.reader not in target_readers:
-                        self.reader = target_readers[0]
-                        self.reader_connected.emit(str(self.reader))
-                else:
-                    if self.reader is not None:
-                        self.reader = None
-                        self.connection = None
-                        self.reader_disconnected.emit()
-
-            except Exception as e:
-                err_repr = repr(e)
-                hint = self._get_pcsc_error_hint(e)
-                # Emit a specific PCSC error signal
-                self.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
-                # Backoff
-                backoff = min(backoff * 1.5, max_backoff)
-
-            # Wait either for backoff duration or until forced scan is requested
-            self.force_scan_event.wait(timeout=backoff)
-            self.force_scan_event.clear()
 
     def card_inserted(self, card):
         try:
@@ -175,4 +184,13 @@ class NFCReaderManager(QObject):
 
     def cleanup(self):
         self.is_running = False
-        self.monitor.deleteObserver(self.observer)
+        if self.card_monitor and self.card_observer:
+            try:
+                self.card_monitor.deleteObserver(self.card_observer)
+            except Exception:
+                pass
+        if self.reader_monitor and self.reader_observer:
+            try:
+                self.reader_monitor.deleteObserver(self.reader_observer)
+            except Exception:
+                pass
