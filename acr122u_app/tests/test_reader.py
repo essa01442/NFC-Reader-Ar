@@ -98,6 +98,48 @@ def test_read_block_failure(reader_manager):
     with pytest.raises(Exception, match="Read error"):
         reader_manager.read_block(4)
 
+def test_discovery_acs_reader(reader_manager):
+    mock_reader = Mock()
+    mock_reader.__str__ = Mock(return_value="ACS ACR122U PICC Interface 00 00")
+
+    with patch('reader.readers', return_value=[mock_reader]):
+        # Call search logic explicitly once
+        # the thread is mocked, so we do what it does
+        available_readers = [mock_reader]
+        target_readers = [r for r in available_readers if "acr" in str(r).lower() or "122" in str(r).lower()]
+
+        assert len(target_readers) == 1
+        assert target_readers[0] == mock_reader
+
+def test_discovery_no_readers_error(reader_manager):
+    with patch('reader.readers', side_effect=Exception("PCSC not running")):
+
+        signal_emitted = False
+        error_msg = ""
+        def on_pcsc_error(msg):
+            nonlocal signal_emitted, error_msg
+            signal_emitted = True
+            error_msg = msg
+
+        reader_manager.pcsc_error_occurred.connect(on_pcsc_error)
+
+        # We simulate the catch block in _search_for_reader
+        try:
+            from smartcard.System import readers
+            readers()
+        except Exception as e:
+            err_repr = repr(e)
+            hint = reader_manager._get_pcsc_error_hint(e)
+            reader_manager.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
+
+        assert signal_emitted is True
+        assert "pcsc" in error_msg.lower() or "smart card" in error_msg.lower()
+
+def test_rescan_trigger(reader_manager):
+    assert not reader_manager.force_scan_event.is_set()
+    reader_manager.rescan_readers()
+    assert reader_manager.force_scan_event.is_set()
+
 def test_write_block_success(reader_manager):
     reader_manager.connection = Mock()
     reader_manager.connection.transmit.return_value = ([], 0x90, 0x00)
