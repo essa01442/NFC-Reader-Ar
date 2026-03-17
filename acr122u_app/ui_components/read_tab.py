@@ -54,6 +54,11 @@ class ReadTab(QWidget):
             msg = self.translator.get("log_read_success") + f" (Block {block_num})"
             self.log(msg)
             self.on_success(msg)
+
+            # log to database if connected
+            main_win = self.window()
+            if hasattr(main_win, 'tab_dashboard'):
+                main_win.tab_dashboard.log_action(self.txt_uid.text(), "READ", f"Block {block_num}: {hex_data}")
         except Exception as e:
             err_msg = self.translator.get("log_read_error", str(e))
             self.log(err_msg)

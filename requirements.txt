@@ -3,3 +3,4 @@ pyscard>=2.0.0,<2.5.0
 pynput>=1.7.6,<1.8.5
 pytest>=7.0.0
 pytest-qt>=4.2.0
+SQLAlchemy>=2.0.0

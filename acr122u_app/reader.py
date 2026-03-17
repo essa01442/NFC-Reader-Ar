@@ -60,12 +60,11 @@ class NFCReaderManager(QObject):
             self.reader_connected.emit(str(self.reader))
 
     def _get_pcsc_error_hint(self, exc):
-        sys_os = platform.system().lower()
-        if "linux" in sys_os:
-            return "تحقق أن خدمة pcscd تعمل: sudo systemctl status pcscd"
-        elif "windows" in sys_os:
-            return "تأكد أن خدمة Smart Card قيد التشغيل التلقائي"
-        return "تأكد من تشغيل خدمة قارئ البطاقات الذكية في نظامك."
+        from diagnostics import SystemDiagnostics
+        is_running, msg = SystemDiagnostics.check_pcscd_status()
+        if not is_running:
+            return msg
+        return f"تأكد من توصيل القارئ أو صلاحيات الوصول. ({msg})"
 
     def _search_for_reader(self):
         backoff = 1.0

@@ -33,6 +33,21 @@ class SettingsTab(QWidget):
 
         layout.addLayout(lang_layout)
 
+        # Theme Settings
+        theme_layout = QHBoxLayout()
+        self.lbl_theme = QLabel(self.translator.get("lbl_theme", "النسق / Theme:"))
+        theme_layout.addWidget(self.lbl_theme)
+
+        self.cmb_theme = QComboBox()
+        self.cmb_theme.addItem("فاتح / Light", "light")
+        self.cmb_theme.addItem("داكن / Dark", "dark")
+        self.cmb_theme.currentIndexChanged.connect(self.on_theme_changed)
+
+        theme_layout.addWidget(self.cmb_theme)
+        theme_layout.addStretch()
+
+        layout.addLayout(theme_layout)
+
         # Reader Settings
         reader_layout = QHBoxLayout()
         self.lbl_reader_select = QLabel(self.translator.get("lbl_reader_select", "اختيار القارئ / Select Reader:"))
@@ -53,6 +68,16 @@ class SettingsTab(QWidget):
 
         # Connect signals
         self.nfc_manager.available_readers_changed.connect(self.update_readers_list)
+
+    def on_theme_changed(self):
+        # We need to signal main window to update theme
+        theme_str = self.cmb_theme.currentData()
+        from ui_components.theme import ThemeManager
+        main_win = self.window()
+        if theme_str == "dark":
+            main_win.setStyleSheet(ThemeManager.get_dark_theme())
+        else:
+            main_win.setStyleSheet(ThemeManager.get_light_theme())
 
     def on_lang_clicked(self):
         lang = self.cmb_lang.currentData()

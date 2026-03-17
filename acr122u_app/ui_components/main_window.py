@@ -15,6 +15,8 @@ from ui_components.security_tab import SecurityTab
 from ui_components.emulation_tab import EmulationTab
 from ui_components.settings_tab import SettingsTab
 from ui_components.log_panel import LogPanel
+from ui_components.theme import ThemeManager
+from ui_components.dashboard_tab import DashboardTab
 
 class LEDIndicator(QLabel):
     def __init__(self, color="gray"):
@@ -55,13 +57,7 @@ class AppMainWindow(QMainWindow):
         self.setFont(font)
 
         # Global Stylesheet
-        self.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #c0c0c0; }
-            QPushButton { padding: 6px 12px; background-color: #f0f0f0; border: 1px solid #c0c0c0; border-radius: 4px; }
-            QPushButton:hover { background-color: #e0e0e0; }
-            QLineEdit, QTextEdit, QSpinBox, QComboBox { padding: 4px; border: 1px solid #c0c0c0; border-radius: 4px; }
-            QGroupBox { border: 1px solid #c0c0c0; border-radius: 4px; margin-top: 10px; padding-top: 10px; font-weight: bold; }
-        """)
+        self.setStyleSheet(ThemeManager.get_light_theme())
 
         # Main widget
         central_widget = QWidget()
@@ -93,12 +89,14 @@ class AppMainWindow(QMainWindow):
 
         # Tabs
         self.tabs = QTabWidget()
+        self.tab_dashboard = DashboardTab(self.translator)
         self.tab_read = ReadTab(self.translator, self.nfc_manager, self.log, self.on_error_occurred, self.show_success_message)
         self.tab_write = WriteTab(self.translator, self.nfc_manager, self.log, self.on_error_occurred, self.show_success_message)
         self.tab_security = SecurityTab(self.translator)
         self.tab_emulation = EmulationTab(self.translator, self.emulator)
         self.tab_settings = SettingsTab(self.translator, self.nfc_manager, self.on_lang_changed)
 
+        self.tabs.addTab(self.tab_dashboard, self.translator.get("tab_dashboard", "لوحة القيادة / Dashboard"))
         self.tabs.addTab(self.tab_read, self.translator.get("tab_read"))
         self.tabs.addTab(self.tab_write, self.translator.get("tab_write"))
         self.tabs.addTab(self.tab_security, self.translator.get("tab_security"))
@@ -145,6 +143,7 @@ class AppMainWindow(QMainWindow):
 
         self.tab_read.set_uid(uid)
         self.log(self.translator.get("log_card_inserted", uid))
+        self.tab_dashboard.log_action(uid, "DETECT", "Card Inserted")
 
         # Emulation mode
         if self.emulator.enabled:
@@ -180,11 +179,12 @@ class AppMainWindow(QMainWindow):
         self.setWindowTitle(self.translator.get("app_title"))
 
         # Tabs
-        self.tabs.setTabText(0, self.translator.get("tab_read"))
-        self.tabs.setTabText(1, self.translator.get("tab_write"))
-        self.tabs.setTabText(2, self.translator.get("tab_security"))
-        self.tabs.setTabText(3, self.translator.get("tab_emulation"))
-        self.tabs.setTabText(4, self.translator.get("tab_settings"))
+        self.tabs.setTabText(0, self.translator.get("tab_dashboard", "لوحة القيادة / Dashboard"))
+        self.tabs.setTabText(1, self.translator.get("tab_read"))
+        self.tabs.setTabText(2, self.translator.get("tab_write"))
+        self.tabs.setTabText(3, self.translator.get("tab_security"))
+        self.tabs.setTabText(4, self.translator.get("tab_emulation"))
+        self.tabs.setTabText(5, self.translator.get("tab_settings"))
 
         # Reader / Card Status
         if self.nfc_manager.reader:
@@ -198,6 +198,7 @@ class AppMainWindow(QMainWindow):
             self.lbl_card_status.setText(self.translator.get("status_card_absent"))
 
         # Retranslate child tabs
+        self.tab_dashboard.retranslate_ui()
         self.tab_read.retranslate_ui()
         self.tab_write.retranslate_ui()
         self.tab_security.retranslate_ui()

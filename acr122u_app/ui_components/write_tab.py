@@ -101,6 +101,12 @@ class WriteTab(QWidget):
                 msg = self.translator.get("log_write_success") + f" (Block {block_num})"
                 self.log(msg)
                 self.on_success(msg)
+
+                main_win = self.window()
+                if hasattr(main_win, 'tab_dashboard') and hasattr(main_win.tab_read, 'txt_uid'):
+                    uid = main_win.tab_read.txt_uid.text()
+                    main_win.tab_dashboard.log_action(uid, "WRITE", f"Block {block_num}: {hex_str}")
+
                 QMessageBox.information(self, self.translator.get("msg_success"), self.translator.get("log_write_success"))
             except Exception as e:
                 err_msg = self.translator.get("log_write_error", str(e))
