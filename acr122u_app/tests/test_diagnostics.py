@@ -19,13 +19,36 @@ def test_linux_pcscd_active():
 
 def test_linux_pcscd_inactive():
     with patch('platform.system', return_value='Linux'):
-        # Mock subprocess.run to return inactive
-        mock_result = Mock()
-        mock_result.stdout = 'inactive\n'
-        with patch('subprocess.run', return_value=mock_result):
+        # First call returns inactive (pcscd.service), second also inactive (pcscd.socket)
+        inactive_result = Mock()
+        inactive_result.stdout = 'inactive\n'
+        with patch('subprocess.run', return_value=inactive_result):
             is_running, msg = SystemDiagnostics.check_pcscd_status()
             assert is_running is False
             assert "sudo systemctl start pcscd" in msg
+
+
+def test_linux_pcscd_socket_active():
+    """When pcscd.socket is active (socket-activated), report the socket issue."""
+    with patch('platform.system', return_value='Linux'):
+        service_inactive = Mock()
+        service_inactive.stdout = 'inactive\n'
+        socket_active = Mock()
+        socket_active.stdout = 'active\n'
+        with patch('subprocess.run', side_effect=[service_inactive, socket_active]):
+            is_running, msg = SystemDiagnostics.check_pcscd_status()
+            assert is_running is False
+            # Message should explain the socket-activation issue
+            assert "pcscd.socket" in msg or "المقبس" in msg
+
+
+def test_get_fix_commands_includes_socket_disable():
+    """Fix commands on Linux should include the pcscd.socket disable step."""
+    with patch('platform.system', return_value='Linux'):
+        commands = SystemDiagnostics.get_fix_commands()
+        all_cmds = " ".join(cmd for _, cmd in commands)
+        assert "pcscd.socket" in all_cmds
+
 
 def test_windows_scardsvr_active():
     with patch('platform.system', return_value='Windows'):

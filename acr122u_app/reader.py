@@ -5,7 +5,40 @@ from smartcard.util import toHexString
 from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.ReaderMonitoring import ReaderMonitor, ReaderObserver
 from smartcard.Exceptions import CardConnectionException, NoCardException, ListReadersException
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal
+
+
+class _WatchdogThread(QThread):
+    """Background thread that periodically checks whether pcscd is still running.
+
+    Emits ``pcscd_status(bool)`` every *interval_ms* milliseconds so that the
+    main manager can react when the service goes down or comes back up.
+    """
+
+    pcscd_status = pyqtSignal(bool)
+
+    def __init__(self, interval_ms: int = 5000):
+        super().__init__()
+        self._interval_ms = interval_ms
+        self._stop_flag = False
+
+    def run(self):
+        from diagnostics import SystemDiagnostics
+        while not self._stop_flag:
+            try:
+                is_running, _ = SystemDiagnostics.check_pcscd_status()
+                self.pcscd_status.emit(is_running)
+            except Exception:
+                pass
+            # Sleep in small increments so stop_flag is checked quickly.
+            elapsed = 0
+            while elapsed < self._interval_ms and not self._stop_flag:
+                self.msleep(200)
+                elapsed += 200
+
+    def stop(self):
+        self._stop_flag = True
+
 
 class NFCCardObserver(CardObserver):
     def __init__(self, manager):
@@ -50,8 +83,14 @@ class NFCReaderManager(QObject):
         self.reader_observer = NFCReaderObserver(self)
 
         self.is_running = True
+        self._pcscd_last_known = None  # None=unknown, True=running, False=down
 
         self._init_monitors()
+
+        # Watchdog: detects pcscd going down / coming back and auto-recovers.
+        self._watchdog = _WatchdogThread()
+        self._watchdog.pcscd_status.connect(self._on_pcscd_status)
+        self._watchdog.start()
 
     def _init_monitors(self):
         try:
@@ -63,9 +102,22 @@ class NFCReaderManager(QObject):
                 self.card_monitor = CardMonitor()
                 self.card_monitor.addObserver(self.card_observer)
         except Exception as e:
-            err_repr = repr(e)
+            # Reset any partially initialised monitor to None so the next call
+            # to _init_monitors() (from the watchdog) can try again cleanly.
+            if self.reader_monitor is not None:
+                try:
+                    self.reader_monitor.deleteObserver(self.reader_observer)
+                except Exception:
+                    pass
+                self.reader_monitor = None
+            if self.card_monitor is not None:
+                try:
+                    self.card_monitor.deleteObserver(self.card_observer)
+                except Exception:
+                    pass
+                self.card_monitor = None
             hint = self._get_pcsc_error_hint(e)
-            self.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
+            self.pcsc_error_occurred.emit(f"{hint} | Details: {repr(e)}")
 
     def update_readers_list(self):
         try:
@@ -121,6 +173,62 @@ class NFCReaderManager(QObject):
         if not perms_ok:
             return f"{perms_msg} — انتقل إلى تبويب 'الحماية والصلاحيات' لأوامر الإصلاح."
         return f"تأكد من توصيل القارئ أو صلاحيات الوصول. ({pcscd_msg})"
+
+    # ── Watchdog / recovery helpers ───────────────────────────────────────────
+
+    def _on_pcscd_status(self, is_running: bool):
+        """Slot called by the watchdog thread with the current pcscd health.
+
+        Handles three transitions:
+        * running → down  : clean up dead monitors, notify UI
+        * down → running  : re-initialise monitors and rescan readers
+        * running, no reader : try to rescan / re-init monitors
+        """
+        was_running = self._pcscd_last_known
+        self._pcscd_last_known = is_running
+
+        if is_running:
+            if was_running is False:
+                # pcscd just came back – rebuild the PC/SC stack.
+                self._restart_monitors()
+            elif not self.all_readers:
+                # pcscd is running but we have no reader yet; try again.
+                if self.card_monitor is None or self.reader_monitor is None:
+                    self._init_monitors()
+                self.update_readers_list()
+        else:
+            if was_running is True:
+                # pcscd just went down – clean up stale monitors.
+                self._cleanup_monitors()
+                if self.reader is not None:
+                    self.reader = None
+                    self.connection = None
+                    self.reader_disconnected.emit()
+
+    def _cleanup_monitors(self):
+        """Remove observers from monitors and reset references to None."""
+        if self.card_monitor is not None:
+            try:
+                self.card_monitor.deleteObserver(self.card_observer)
+            except Exception:
+                pass
+            self.card_monitor = None
+        if self.reader_monitor is not None:
+            try:
+                self.reader_monitor.deleteObserver(self.reader_observer)
+            except Exception:
+                pass
+            self.reader_monitor = None
+
+    def _restart_monitors(self):
+        """Tear down existing monitors and create fresh ones.
+
+        Called automatically by the watchdog after pcscd restarts so that the
+        app reconnects without requiring a manual rescan by the user.
+        """
+        self._cleanup_monitors()
+        self._init_monitors()
+        self.update_readers_list()
 
     def card_inserted(self, card):
         try:
@@ -188,13 +296,11 @@ class NFCReaderManager(QObject):
 
     def cleanup(self):
         self.is_running = False
-        if self.card_monitor and self.card_observer:
-            try:
-                self.card_monitor.deleteObserver(self.card_observer)
-            except Exception:
-                pass
-        if self.reader_monitor and self.reader_observer:
-            try:
-                self.reader_monitor.deleteObserver(self.reader_observer)
-            except Exception:
-                pass
+        # Stop the watchdog thread first to prevent it emitting signals while
+        # we tear down monitors.
+        if hasattr(self, '_watchdog') and self._watchdog is not None:
+            self._watchdog.stop()
+            # Allow up to 2 s for the thread to exit its current 200 ms sleep
+            # increment and observe the stop flag.
+            self._watchdog.wait(2000)
+        self._cleanup_monitors()

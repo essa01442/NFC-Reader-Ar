@@ -18,7 +18,8 @@ from reader import NFCReaderManager
 @pytest.fixture
 def reader_manager():
     # Mock monitors to prevent background thread execution and PC/SC crashes during tests
-    with patch('reader.CardMonitor'), patch('reader.ReaderMonitor'):
+    with patch('reader.CardMonitor'), patch('reader.ReaderMonitor'), \
+         patch('reader._WatchdogThread'):
         manager = NFCReaderManager()
         yield manager
 
@@ -123,14 +124,9 @@ def test_discovery_no_readers_error(reader_manager):
 
         reader_manager.pcsc_error_occurred.connect(on_pcsc_error)
 
-        # We simulate the catch block in _search_for_reader
-        try:
-            from smartcard.System import readers
-            readers()
-        except Exception as e:
-            err_repr = repr(e)
-            hint = reader_manager._get_pcsc_error_hint(e)
-            reader_manager.pcsc_error_occurred.emit(f"{hint} | Details: {err_repr}")
+        # update_readers_list() calls reader.readers() (via the reader module's
+        # namespace) and emits pcsc_error_occurred when it raises.
+        reader_manager.update_readers_list()
 
         assert signal_emitted is True
         assert "pcsc" in error_msg.lower() or "smart card" in error_msg.lower()
@@ -165,3 +161,57 @@ def test_write_block_failure(reader_manager):
     data_bytes = bytes([0x11, 0x22, 0x33, 0x44])
     with pytest.raises(Exception, match="Write error"):
         reader_manager.write_block(4, data_bytes)
+
+# ── Watchdog / recovery tests ─────────────────────────────────────────────────
+
+def test_on_pcscd_status_pcscd_just_came_back(reader_manager):
+    """When pcscd transitions from down→running, monitors are restarted."""
+    reader_manager._pcscd_last_known = False  # was down
+
+    with patch.object(reader_manager, '_restart_monitors') as mock_restart:
+        reader_manager._on_pcscd_status(True)
+        mock_restart.assert_called_once()
+
+def test_on_pcscd_status_pcscd_just_went_down(reader_manager):
+    """When pcscd transitions from running→down, monitors are cleaned up and
+    the reader_disconnected signal is emitted."""
+    reader_manager._pcscd_last_known = True  # was running
+    reader_manager.reader = Mock()  # pretend a reader was connected
+
+    disconnected = []
+    reader_manager.reader_disconnected.connect(lambda: disconnected.append(True))
+
+    with patch.object(reader_manager, '_cleanup_monitors') as mock_cleanup:
+        reader_manager._on_pcscd_status(False)
+        mock_cleanup.assert_called_once()
+    assert disconnected, "reader_disconnected signal should have been emitted"
+    assert reader_manager.reader is None
+
+def test_on_pcscd_status_running_no_readers_rescans(reader_manager):
+    """When pcscd is running but no readers detected, a rescan is triggered."""
+    reader_manager._pcscd_last_known = True  # already known running
+    reader_manager.all_readers = []
+
+    with patch.object(reader_manager, 'update_readers_list') as mock_scan:
+        reader_manager._on_pcscd_status(True)
+        mock_scan.assert_called_once()
+
+def test_cleanup_monitors_resets_references(reader_manager):
+    """_cleanup_monitors() should set both monitor references to None."""
+    reader_manager.card_monitor = Mock()
+    reader_manager.reader_monitor = Mock()
+
+    reader_manager._cleanup_monitors()
+
+    assert reader_manager.card_monitor is None
+    assert reader_manager.reader_monitor is None
+
+def test_restart_monitors(reader_manager):
+    """_restart_monitors() cleans up and re-initialises monitors."""
+    with patch.object(reader_manager, '_cleanup_monitors') as mock_cleanup, \
+         patch.object(reader_manager, '_init_monitors') as mock_init, \
+         patch.object(reader_manager, 'update_readers_list') as mock_scan:
+        reader_manager._restart_monitors()
+        mock_cleanup.assert_called_once()
+        mock_init.assert_called_once()
+        mock_scan.assert_called_once()

@@ -44,8 +44,24 @@ class SystemDiagnostics:
                 )
                 if result.stdout.strip() == 'active':
                     return True, "خدمة pcscd تعمل بشكل سليم."
-                else:
-                    return False, "خدمة pcscd غير مفعلة. يرجى تنفيذ: sudo systemctl start pcscd"
+
+                # pcscd.service is not active – check whether socket activation is
+                # the culprit (pcscd stops automatically when no client is connected).
+                socket_result = subprocess.run(
+                    ['systemctl', 'is-active', 'pcscd.socket'],
+                    capture_output=True,
+                    text=True,
+                    timeout=2
+                )
+                if socket_result.stdout.strip() == 'active':
+                    return False, (
+                        "خدمة pcscd غير مفعلة (تشغيل عبر المقبس يوقفها تلقائيًا عند عدم الاستخدام). "
+                        "لإصلاح التوقف التلقائي يرجى تنفيذ: "
+                        "sudo systemctl disable pcscd.socket && "
+                        "sudo systemctl enable pcscd && sudo systemctl start pcscd"
+                    )
+
+                return False, "خدمة pcscd غير مفعلة. يرجى تنفيذ: sudo systemctl start pcscd"
             except Exception as e:
                 return False, f"تعذر التحقق من حالة pcscd: {str(e)}"
 
@@ -190,7 +206,9 @@ class SystemDiagnostics:
         return [
             ("تثبيت خدمة pcscd وأدوات البطاقات الذكية",
              "sudo apt-get install -y pcscd pcsc-tools libpcsclite-dev"),
-            ("تفعيل وتشغيل خدمة pcscd",
+            ("تعطيل تشغيل pcscd عبر المقبس (يسبب توقفها تلقائيًا بعد دقائق من الخمول)",
+             "sudo systemctl disable pcscd.socket && sudo systemctl stop pcscd.socket"),
+            ("تفعيل وتشغيل خدمة pcscd بشكل مستمر",
              "sudo systemctl enable pcscd && sudo systemctl start pcscd"),
             (f"إضافة المستخدم '{user}' إلى مجموعة plugdev",
              f"sudo usermod -aG plugdev {user}"),
