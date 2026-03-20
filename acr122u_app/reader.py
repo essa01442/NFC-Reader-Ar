@@ -64,7 +64,8 @@ class NFCReaderManager(QObject):
     # Signals for UI updates
     reader_connected = pyqtSignal(str)
     reader_disconnected = pyqtSignal()
-    card_detected = pyqtSignal(str) # UID
+    card_detected = pyqtSignal(str)   # UID hex string (no colons)
+    card_info_ready = pyqtSignal(dict)  # Rich card metadata dict
     card_removed_signal = pyqtSignal()
     error_occurred = pyqtSignal(str)
     available_readers_changed = pyqtSignal(list)
@@ -235,21 +236,150 @@ class NFCReaderManager(QObject):
             self.connection = card.createConnection()
             self.connection.connect()
 
-            # Get UID (APDU for getting UID on ACR122U)
-            # FF CA 00 00 00
+            # Step 1 – read UID
             GET_UID_APDU = [0xFF, 0xCA, 0x00, 0x00, 0x00]
-            data, sw1, sw2 = self.connection.transmit(GET_UID_APDU)
+            uid_data, sw1, sw2 = self.connection.transmit(GET_UID_APDU)
 
-            if sw1 == 0x90 and sw2 == 0x00:
-                uid = toHexString(data).replace(" ", "")
-                self.card_detected.emit(uid)
-            else:
+            if sw1 != 0x90 or sw2 != 0x00:
                 self.error_occurred.emit(f"Failed to read UID: {sw1:02X} {sw2:02X}")
+                return
+
+            uid = toHexString(uid_data).replace(" ", "")
+            self.card_detected.emit(uid)
+
+            # Step 2 – collect rich card info and emit card_info_ready
+            info = self._collect_card_info(uid_data)
+            self.card_info_ready.emit(info)
 
         except CardConnectionException as e:
             self.error_occurred.emit(f"Card connection error: {str(e)}")
         except Exception as e:
             self.error_occurred.emit(f"Unknown card error: {str(e)}")
+
+    # ------------------------------------------------------------------
+    def _collect_card_info(self, uid_data):
+        """Read comprehensive card metadata after a card has been connected.
+
+        Returns a dict suitable for display in the Read-tab info panel.
+        """
+        from nfc_utils import parse_atr, refine_with_cc, parse_ndef_from_type2_memory
+
+        info = {
+            'uid_raw': list(uid_data),
+            'uid_formatted': ':'.join(f'{b:02X}' for b in uid_data),
+            'tag_type': 'Unknown',
+            'technologies': '',
+            'atqa': 'N/A',
+            'sak': 'N/A',
+            'memory_bytes': 0,
+            'memory_pages': 0,
+            'page_size': 0,
+            'data_format': 'Unknown',
+            'writable': False,
+            'read_only_capable': False,
+            'ndef_records': [],
+            'ndef_used': 0,
+            'ndef_available': 0,
+            'password_protected': False,
+        }
+
+        try:
+            # Parse ATR for card type
+            atr = self.connection.getATR()
+            info['atr'] = atr
+            card_type_info = parse_atr(atr)
+            info.update(card_type_info)
+        except Exception:
+            pass
+
+        # For NFC Forum Type 2 cards (NTAG / Mifare Ultralight): read pages.
+        # Page size of 4 bytes is the standard for NFC Forum Type 2 tags.
+        if info.get('data_format') == 'NFC Forum Type 2' or info.get('page_size') == 4:
+            all_pages = self._read_all_pages_type2(info)
+            if all_pages:
+                # Refine card type from CC (page 3)
+                refined = refine_with_cc(info, all_pages[:16])
+                info.update(refined)
+
+                # Parse NDEF records
+                ndef_records = parse_ndef_from_type2_memory(all_pages, start_page=4)
+                info['ndef_records'] = ndef_records
+
+                # Determine used NDEF bytes from TLV at start of user area
+                ndef_used = self._get_ndef_message_length(all_pages, start_page=4)
+                info['ndef_used'] = ndef_used
+
+        return info
+
+    def _read_all_pages_type2(self, card_info):
+        """Read the full memory of an NFC Forum Type 2 tag (NTAG/Ultralight).
+
+        Reads pages in 16-byte chunks (4 pages at a time) until the full
+        memory is retrieved or a read error is encountered.
+        Returns a flat bytes object, or None on failure.
+        """
+        total_pages = card_info.get('memory_pages', 0)
+        if total_pages == 0:
+            total_pages = 16   # minimum for Mifare Ultralight
+
+        all_data = bytearray()
+        page = 0
+
+        while page < total_pages:
+            try:
+                READ_APDU = [0xFF, 0xB0, 0x00, page, 0x10]
+                data, sw1, sw2 = self.connection.transmit(READ_APDU)
+                if sw1 == 0x90 and sw2 == 0x00:
+                    all_data.extend(data)
+                    page += 4
+                else:
+                    break
+            except Exception:
+                break
+
+        return bytes(all_data) if all_data else None
+
+    @staticmethod
+    def _get_ndef_message_length(all_pages_data, start_page=4):
+        """Return the length of the first NDEF message TLV, or 0 if none."""
+        if isinstance(all_pages_data, list):
+            all_pages_data = bytes(all_pages_data)
+
+        start = start_page * 4
+        if start >= len(all_pages_data):
+            return 0
+
+        data = all_pages_data[start:]
+        pos = 0
+
+        while pos < len(data):
+            tlv_type = data[pos]
+            pos += 1
+
+            if tlv_type == 0x00:
+                continue
+            if tlv_type == 0xFE:
+                break
+
+            if pos >= len(data):
+                break
+            length_byte = data[pos]
+            pos += 1
+
+            if length_byte == 0xFF:
+                if pos + 2 > len(data):
+                    break
+                length = (data[pos] << 8) | data[pos + 1]
+                pos += 2
+            else:
+                length = length_byte
+
+            if tlv_type == 0x03:   # NDEF Message TLV
+                return length
+
+            pos += length   # skip non-NDEF TLVs
+
+        return 0
 
     def card_removed(self, card):
         self.connection = None
@@ -260,15 +390,21 @@ class NFCReaderManager(QObject):
             raise Exception("No card connected")
 
         try:
-            # Read Binary Block APDU for MIFARE/NTAG
-            # FF B0 00 <block_num> 10
+            # Try 16-byte read first (MIFARE Classic / Ultralight 4-page read)
             READ_APDU = [0xFF, 0xB0, 0x00, int(block_num), 0x10]
             data, sw1, sw2 = self.connection.transmit(READ_APDU)
 
             if sw1 == 0x90 and sw2 == 0x00:
                 return data
-            else:
-                raise Exception(f"Read error: SW1={sw1:02X}, SW2={sw2:02X}")
+
+            # Fall back to 4-byte read (single NTAG page)
+            READ_APDU = [0xFF, 0xB0, 0x00, int(block_num), 0x04]
+            data, sw1, sw2 = self.connection.transmit(READ_APDU)
+
+            if sw1 == 0x90 and sw2 == 0x00:
+                return data
+
+            raise Exception(f"Read error: SW1={sw1:02X}, SW2={sw2:02X}")
         except Exception as e:
             raise e
 
