@@ -25,6 +25,31 @@ translations = {
         "status_card_present": "البطاقة متصلة",
         "status_card_absent": "لا توجد بطاقة",
 
+        # Card Info section
+        "section_card_info": "معلومات البطاقة",
+        "lbl_tag_type": "نوع البطاقة:",
+        "lbl_technologies": "التقنيات المتاحة:",
+        "lbl_serial_number": "الرقم التسلسلي:",
+        "lbl_atqa": "ATQA:",
+        "lbl_sak": "SAK:",
+        "lbl_password_protected": "محمية بكلمة مرور:",
+        "lbl_memory_info": "معلومات الذاكرة:",
+        "lbl_data_format": "تنسيق البيانات:",
+        "lbl_size": "الحجم:",
+        "lbl_writable": "قابلة للكتابة:",
+        "lbl_read_only_capable": "يمكن جعلها للقراءة فقط:",
+        "val_yes": "نعم",
+        "val_no": "لا",
+        "val_unknown": "غير معروف",
+        "val_none": "لا يوجد",
+
+        # NDEF records section
+        "section_ndef": "سجلات NDEF",
+        "lbl_record": "سجل {}:",
+        "no_ndef": "لا توجد سجلات NDEF",
+
+        # Raw block reader section
+        "section_raw_read": "قراءة كتلة/صفحة (متقدم)",
         "lbl_uid": "المعرف الفريد (UID):",
         "lbl_data": "بيانات البطاقة:",
         "btn_read": "قراءة البيانات",
@@ -87,6 +112,31 @@ translations = {
         "status_card_present": "Card Present",
         "status_card_absent": "No Card",
 
+        # Card Info section
+        "section_card_info": "Card Information",
+        "lbl_tag_type": "Tag type:",
+        "lbl_technologies": "Technologies available:",
+        "lbl_serial_number": "Serial number:",
+        "lbl_atqa": "ATQA:",
+        "lbl_sak": "SAK:",
+        "lbl_password_protected": "Protected by password:",
+        "lbl_memory_info": "Memory information:",
+        "lbl_data_format": "Data format:",
+        "lbl_size": "Size:",
+        "lbl_writable": "Writable:",
+        "lbl_read_only_capable": "Can be made Read-Only:",
+        "val_yes": "Yes",
+        "val_no": "No",
+        "val_unknown": "Unknown",
+        "val_none": "None",
+
+        # NDEF records section
+        "section_ndef": "NDEF Records",
+        "lbl_record": "Record {}:",
+        "no_ndef": "No NDEF records",
+
+        # Raw block reader section
+        "section_raw_read": "Read Block / Page (Advanced)",
         "lbl_uid": "Unique ID (UID):",
         "lbl_data": "Card Data:",
         "btn_read": "Read Data",

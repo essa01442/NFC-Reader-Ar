@@ -116,6 +116,7 @@ class AppMainWindow(QMainWindow):
         self.nfc_manager.reader_connected.connect(self.on_reader_connected)
         self.nfc_manager.reader_disconnected.connect(self.on_reader_disconnected)
         self.nfc_manager.card_detected.connect(self.on_card_detected)
+        self.nfc_manager.card_info_ready.connect(self.on_card_info_ready)
         self.nfc_manager.card_removed_signal.connect(self.on_card_removed)
         self.nfc_manager.error_occurred.connect(self.on_error_occurred)
         self.nfc_manager.pcsc_error_occurred.connect(self.on_pcsc_error)
@@ -148,6 +149,10 @@ class AppMainWindow(QMainWindow):
         # Emulation mode
         if self.emulator.enabled:
             self.emulator.type_string(uid)
+
+    def on_card_info_ready(self, info: dict):
+        """Populate the Read tab with rich card metadata."""
+        self.tab_read.show_card_info(info)
 
     def on_card_removed(self):
         self.lbl_card_status.setText(self.translator.get("status_card_absent"))
