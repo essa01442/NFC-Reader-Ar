@@ -15,12 +15,12 @@ class LogPanel(QGroupBox):
         # Tools layout
         tools_layout = QHBoxLayout()
         self.cmb_filter = QComboBox()
-        self.cmb_filter.addItem("الكل / All", "all")
-        self.cmb_filter.addItem("معلومات / Info", "info")
-        self.cmb_filter.addItem("أخطاء / Error", "error")
+        self.cmb_filter.addItem(self.translator.get("opt_all"), "all")
+        self.cmb_filter.addItem(self.translator.get("opt_info"), "info")
+        self.cmb_filter.addItem(self.translator.get("opt_error"), "error")
         self.cmb_filter.currentIndexChanged.connect(self.apply_filter)
 
-        self.btn_save_log = QPushButton(self.translator.get("btn_save_log", "حفظ السجل"))
+        self.btn_save_log = QPushButton(self.translator.get("btn_save_log"))
         self.btn_save_log.clicked.connect(self.save_log)
 
         self.btn_clear_log = QPushButton(self.translator.get("btn_clear_log"))
@@ -80,8 +80,8 @@ class LogPanel(QGroupBox):
     def retranslate_ui(self):
         self.setTitle(self.translator.get("log_title"))
         self.btn_clear_log.setText(self.translator.get("btn_clear_log"))
-        self.btn_save_log.setText(self.translator.get("btn_save_log", "حفظ السجل"))
+        self.btn_save_log.setText(self.translator.get("btn_save_log"))
         # Retranslate combobox items keeping their data
-        self.cmb_filter.setItemText(0, self.translator.get("opt_all", "الكل / All"))
-        self.cmb_filter.setItemText(1, self.translator.get("opt_info", "معلومات / Info"))
-        self.cmb_filter.setItemText(2, self.translator.get("opt_error", "أخطاء / Error"))
+        self.cmb_filter.setItemText(0, self.translator.get("opt_all"))
+        self.cmb_filter.setItemText(1, self.translator.get("opt_info"))
+        self.cmb_filter.setItemText(2, self.translator.get("opt_error"))

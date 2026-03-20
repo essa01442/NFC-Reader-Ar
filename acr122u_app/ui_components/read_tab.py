@@ -116,7 +116,7 @@ class ReadTab(QWidget):
         raw_layout.addWidget(self.lbl_data)
         self.txt_read_data = QTextEdit()
         self.txt_read_data.setReadOnly(True)
-        self.txt_read_data.setMaximumHeight(100)
+        self.txt_read_data.setMaximumHeight(130)
         raw_layout.addWidget(self.txt_read_data)
 
         btn_row = QHBoxLayout()
@@ -230,7 +230,13 @@ class ReadTab(QWidget):
         try:
             data = self.nfc_manager.read_block(block_num)
             hex_data = " ".join([f"{b:02X}" for b in data])
-            self.txt_read_data.setText(hex_data)
+
+            # Also show a decoded text representation alongside the hex
+            decoded = bytes(data).decode('utf-8', errors='replace')
+            printable = ''.join(c if c.isprintable() else '.' for c in decoded)
+            display = f"HEX: {hex_data}\nTEXT: {printable}"
+
+            self.txt_read_data.setText(display)
             msg = self.translator.get("log_read_success") + f" (Block {block_num})"
             self.log(msg)
             self.on_success(msg)
