@@ -92,7 +92,7 @@ class AppMainWindow(QMainWindow):
         self.tab_dashboard = DashboardTab(self.translator)
         self.tab_read = ReadTab(self.translator, self.nfc_manager, self.log, self.on_error_occurred, self.show_success_message)
         self.tab_write = WriteTab(self.translator, self.nfc_manager, self.log, self.on_error_occurred, self.show_success_message)
-        self.tab_security = SecurityTab(self.translator)
+        self.tab_security = SecurityTab(self.translator, self.nfc_manager)
         self.tab_emulation = EmulationTab(self.translator, self.emulator)
         self.tab_settings = SettingsTab(self.translator, self.nfc_manager, self.on_lang_changed)
 
@@ -146,13 +146,19 @@ class AppMainWindow(QMainWindow):
         self.log(self.translator.get("log_card_inserted", uid))
         self.tab_dashboard.log_action(uid, "DETECT", "Card Inserted")
 
-        # Emulation mode
+        # Emulation mode: type UID and update emulation tab display
         if self.emulator.enabled:
             self.emulator.type_string(uid)
+        self.tab_emulation.update_emulated_card(uid)
 
     def on_card_info_ready(self, info: dict):
         """Populate the Read tab with rich card metadata."""
         self.tab_read.show_card_info(info)
+        self.tab_security.update_card_info(info)
+        # Update emulation tab with card type info
+        uid = info.get('uid_formatted') or self.tab_read.txt_uid.text()
+        card_type = info.get('tag_type', '')
+        self.tab_emulation.update_emulated_card(uid, card_type)
 
     def on_card_removed(self):
         self.lbl_card_status.setText(self.translator.get("status_card_absent"))
@@ -160,6 +166,7 @@ class AppMainWindow(QMainWindow):
         self.led_card.set_color("gray")
 
         self.tab_read.clear_data()
+        self.tab_security.clear_card_info()
         self.log(self.translator.get("log_card_removed"))
 
     def on_error_occurred(self, err_msg):
