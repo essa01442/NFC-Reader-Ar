@@ -80,6 +80,12 @@ translations = {
         "log_write_success": "تمت الكتابة بنجاح.",
         "log_write_error": "خطأ في الكتابة: {}",
 
+        "tab_dashboard": "لوحة القيادة",
+        "btn_save_log": "حفظ السجل",
+        "opt_all": "الكل",
+        "opt_info": "معلومات",
+        "opt_error": "أخطاء",
+
         "msg_error": "خطأ",
         "msg_success": "نجاح",
         "msg_warning": "تحذير",
@@ -166,6 +172,12 @@ translations = {
         "log_read_error": "Read error: {}",
         "log_write_success": "Write successful.",
         "log_write_error": "Write error: {}",
+
+        "tab_dashboard": "Dashboard",
+        "btn_save_log": "Save Log",
+        "opt_all": "All",
+        "opt_info": "Info",
+        "opt_error": "Errors",
 
         "msg_error": "Error",
         "msg_success": "Success",

@@ -17,7 +17,7 @@ class ThemeManager:
                 border-radius: 6px;
             }
             QTabBar::tab {
-                background-color: #e84118;
+                background-color: #3a86c8;
                 color: white;
                 padding: 8px 16px;
                 border-top-left-radius: 6px;
@@ -25,7 +25,7 @@ class ThemeManager:
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background-color: #c23616;
+                background-color: #2a6099;
                 font-weight: bold;
             }
             QTabBar::tab:!selected {
@@ -71,7 +71,7 @@ class ThemeManager:
                 subcontrol-origin: margin;
                 subcontrol-position: top center;
                 padding: 0 5px;
-                color: #e84118;
+                color: #2a6099;
             }
             QStatusBar {
                 background-color: #ffffff;
@@ -95,7 +95,7 @@ class ThemeManager:
                 border-radius: 6px;
             }
             QTabBar::tab {
-                background-color: #e84118;
+                background-color: #3a86c8;
                 color: white;
                 padding: 8px 16px;
                 border-top-left-radius: 6px;
@@ -103,7 +103,7 @@ class ThemeManager:
                 margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background-color: #c23616;
+                background-color: #2a6099;
                 font-weight: bold;
             }
             QPushButton {
@@ -146,7 +146,7 @@ class ThemeManager:
                 subcontrol-origin: margin;
                 subcontrol-position: top center;
                 padding: 0 5px;
-                color: #e84118;
+                color: #3a86c8;
             }
             QStatusBar {
                 background-color: #2c3e50;
