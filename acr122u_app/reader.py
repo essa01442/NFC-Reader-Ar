@@ -6,6 +6,7 @@ from smartcard.CardMonitoring import CardMonitor, CardObserver
 from smartcard.ReaderMonitoring import ReaderMonitor, ReaderObserver
 from smartcard.Exceptions import CardConnectionException, NoCardException, ListReadersException
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from nfc_utils import encode_ndef_text
 
 
 class _WatchdogThread(QThread):
@@ -580,6 +581,44 @@ class NFCReaderManager(QObject):
                 raise Exception(f"Write error: SW1={sw1:02X}, SW2={sw2:02X}")
         except Exception as e:
             raise e
+
+    def write_ndef_text(self, text: str, lang: str = 'en') -> int:
+        """Write a plain-text string as an NDEF Text record on a Type 2 tag.
+
+        Encodes *text* as an NFC Forum NDEF Text record (TNF=0x01, type='T',
+        UTF-8) and writes the resulting TLV-wrapped bytes to user pages
+        starting at page 4.  The previous NDEF content on the card is
+        completely replaced.
+
+        Args:
+            text: The plain-text string to store (passwords, notes, etc.).
+            lang: Two-letter ISO 639-1 language code for the NDEF record
+                  (default ``'en'``).
+
+        Returns:
+            The number of 4-byte pages written.
+
+        Raises:
+            Exception: If no card is connected, or if any page write fails.
+        """
+        if not self.connection:
+            raise Exception("No card connected")
+
+        ndef_bytes = bytearray(encode_ndef_text(text, lang))
+
+        # Pad to a multiple of 4 bytes (one NFC page)
+        remainder = len(ndef_bytes) % 4
+        if remainder:
+            ndef_bytes += bytearray(4 - remainder)
+
+        start_page = 4
+        pages_written = 0
+        for i in range(0, len(ndef_bytes), 4):
+            page_data = list(ndef_bytes[i: i + 4])
+            self.write_block(start_page + pages_written, page_data)
+            pages_written += 1
+
+        return pages_written
 
     def cleanup(self):
         self.is_running = False

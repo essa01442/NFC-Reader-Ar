@@ -60,6 +60,21 @@ translations = {
         "btn_write": "كتابة البيانات",
         "msg_write_warn": "تحذير: الكتابة قد تمحو البيانات السابقة. هل تريد المتابعة؟",
 
+        # Write text / password section
+        "section_write_text": "✍️ كتابة نص / كلمة مرور (NDEF)",
+        "lbl_text_to_write": "النص أو كلمة المرور:",
+        "lbl_text_hint": "أدخل أي نص أو كلمة مرور (10-70 حرف أو أكثر)",
+        "lbl_char_count": "{} حرف",
+        "lbl_text_lang": "رمز اللغة (مثال: en أو ar):",
+        "btn_write_text": "✍️ كتابة كسجل NDEF",
+        "msg_write_text_warn": "سيتم الكتابة فوق محتوى NDEF الحالي.\nهل تريد المتابعة؟",
+        "err_text_empty": "النص فارغ، يرجى إدخال نص أو كلمة مرور.",
+        "err_text_too_long": "النص طويل جداً ({} بايت). الحد الأقصى {} بايت لهذا النوع من البطاقات.",
+        "log_write_text_success": "✅ تم كتابة النص بنجاح ({} صفحة).",
+
+        # Advanced raw write section
+        "section_write_raw": "🔧 كتابة كتلة خام (متقدم)",
+
         "lbl_emulation_mode": "وضع محاكاة الكيبورد:",
         "chk_emulation_enable": "تفعيل وضع المحاكاة",
         "lbl_emulation_suffix": "الإجراء بعد الإدخال:",
@@ -110,9 +125,14 @@ translations = {
 
         # Emulation tab display
         "section_last_emulated": "آخر بطاقة محاكاة",
-        "lbl_emulated_uid": "المعرف الفريد المُحاكى:",
+        "lbl_emulated_uid": "المعرف الفريد (UID):",
         "lbl_emulated_type": "نوع البطاقة:",
         "no_emulated_card": "لم يتم محاكاة أي بطاقة بعد",
+        "lbl_emulate_source": "مصدر البيانات المُحاكاة:",
+        "opt_emulate_uid": "المعرف الفريد (UID)",
+        "opt_emulate_ndef": "محتوى NDEF (النص المخزون)",
+        "lbl_emulated_content": "المحتوى المُحاكى (النص):",
+        "no_ndef_content": "لا يوجد نص NDEF مخزون على البطاقة",
 
         "msg_error": "خطأ",
         "msg_success": "نجاح",
@@ -181,6 +201,21 @@ translations = {
         "btn_write": "Write Data",
         "msg_write_warn": "Warning: Writing may overwrite previous data. Continue?",
 
+        # Write text / password section
+        "section_write_text": "✍️ Write Text / Password (NDEF)",
+        "lbl_text_to_write": "Text or Password:",
+        "lbl_text_hint": "Enter any text or password (10-70 chars or more)",
+        "lbl_char_count": "{} characters",
+        "lbl_text_lang": "Language code (e.g. en or ar):",
+        "btn_write_text": "✍️ Write as NDEF Record",
+        "msg_write_text_warn": "This will overwrite the current NDEF content.\nContinue?",
+        "err_text_empty": "Text is empty. Please enter a text or password.",
+        "err_text_too_long": "Text is too long ({} bytes). Maximum {} bytes for this card type.",
+        "log_write_text_success": "✅ Text written successfully ({} pages).",
+
+        # Advanced raw write section
+        "section_write_raw": "🔧 Write Raw Block (Advanced)",
+
         "lbl_emulation_mode": "Keyboard Emulation Mode:",
         "chk_emulation_enable": "Enable Emulation Mode",
         "lbl_emulation_suffix": "Action after input:",
@@ -234,6 +269,11 @@ translations = {
         "lbl_emulated_uid": "Emulated UID:",
         "lbl_emulated_type": "Card Type:",
         "no_emulated_card": "No card emulated yet",
+        "lbl_emulate_source": "Emulate data source:",
+        "opt_emulate_uid": "Unique ID (UID)",
+        "opt_emulate_ndef": "NDEF Content (Stored Text)",
+        "lbl_emulated_content": "Emulated Content (Text):",
+        "no_ndef_content": "No NDEF text content stored on card",
 
         "msg_error": "Error",
         "msg_success": "Success",
