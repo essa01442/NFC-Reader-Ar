@@ -13,16 +13,19 @@ class _InfoRow(QWidget):
     def __init__(self, key_text, value_text="", parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setContentsMargins(6, 3, 6, 3)
+        layout.setSpacing(8)
 
         self.lbl_key = QLabel(key_text)
-        self.lbl_key.setFixedWidth(200)
+        self.lbl_key.setFixedWidth(220)
+        self.lbl_key.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bold = QFont()
         bold.setBold(True)
         self.lbl_key.setFont(bold)
 
         self.lbl_value = QLabel(value_text)
         self.lbl_value.setWordWrap(True)
+        self.lbl_value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_value.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )

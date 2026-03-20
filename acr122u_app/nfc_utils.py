@@ -371,3 +371,63 @@ def _decode_uri(record, payload):
     suffix = payload[1:].decode('utf-8', errors='replace')
     record['record_type'] = 'URI'
     record['content'] = prefix + suffix
+
+
+# ---------------------------------------------------------------------------
+# NDEF text encoding
+# ---------------------------------------------------------------------------
+
+def encode_ndef_text(text: str, lang: str = 'en') -> bytes:
+    """Encode a plain-text string as a complete TLV-wrapped NDEF Text record.
+
+    The returned bytes are ready to be written to an NFC Forum Type 2 tag
+    starting at page 4 (the first user-data page for NTAG/Ultralight cards).
+
+    Structure::
+
+        03 <ndef_len> [FF <len_hi> <len_lo>] <ndef_record> FE
+
+    The NDEF record inside uses TNF=0x01 (Well-Known), record type ``T``, and
+    UTF-8 encoding.
+
+    Args:
+        text: The plain-text string to encode (may include any Unicode).
+        lang: Two-letter ISO 639-1 language code (default ``'en'``).
+
+    Returns:
+        ``bytes`` containing the full TLV-wrapped NDEF message.
+    """
+    lang_bytes = lang.encode('ascii')
+    text_bytes = text.encode('utf-8')
+
+    # Payload: status_byte | lang_code | text
+    status = len(lang_bytes) & 0x3F   # bit 7 = 0 → UTF-8
+    payload = bytes([status]) + lang_bytes + text_bytes
+
+    # NDEF record header flags:
+    # MB=1, ME=1, CF=0, SR=1 (short) or SR=0 (long), IL=0, TNF=0x01
+    record_type = b'T'
+    if len(payload) <= 255:
+        header = 0xD1   # MB ME SR TNF=01
+        ndef_record = bytes([header, len(record_type), len(payload)]) + record_type + payload
+    else:
+        header = 0xC1   # MB ME TNF=01 (no SR)
+        ndef_record = (
+            bytes([header, len(record_type)])
+            + len(payload).to_bytes(4, 'big')
+            + record_type
+            + payload
+        )
+
+    # TLV wrapper: 0x03 <length> <ndef_record> 0xFE
+    if len(ndef_record) <= 254:
+        tlv = bytes([0x03, len(ndef_record)]) + ndef_record + bytes([0xFE])
+    else:
+        tlv = (
+            bytes([0x03, 0xFF])
+            + len(ndef_record).to_bytes(2, 'big')
+            + ndef_record
+            + bytes([0xFE])
+        )
+
+    return tlv

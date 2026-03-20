@@ -146,8 +146,10 @@ class AppMainWindow(QMainWindow):
         self.log(self.translator.get("log_card_inserted", uid))
         self.tab_dashboard.log_action(uid, "DETECT", "Card Inserted")
 
-        # Emulation mode: type UID and update emulation tab display
-        if self.emulator.enabled:
+        # Emulation mode – type UID only when "uid" source is selected.
+        # NDEF-content emulation is deferred to on_card_info_ready so that
+        # the card data has been fully read first.
+        if self.emulator.enabled and self.tab_emulation.get_emulate_source() == "uid":
             self.emulator.type_string(uid)
         self.tab_emulation.update_emulated_card(uid)
 
@@ -155,10 +157,33 @@ class AppMainWindow(QMainWindow):
         """Populate the Read tab with rich card metadata."""
         self.tab_read.show_card_info(info)
         self.tab_security.update_card_info(info)
-        # Update emulation tab with card type info
+
         uid = info.get('uid_formatted') or self.tab_read.txt_uid.text()
         card_type = info.get('tag_type', '')
-        self.tab_emulation.update_emulated_card(uid, card_type)
+
+        # Extract the plain text from the first NDEF Text or plain-MIME record.
+        # NDEF Text records are decoded with record_type containing "text/plain",
+        # "UTF-8 (...) : text/plain", or "UTF-16 (...) : text/plain".
+        ndef_text = ""
+        for rec in info.get('ndef_records', []):
+            content = rec.get('content', '')
+            rec_type = rec.get('record_type', '')
+            if 'text/plain' in rec_type or rec_type == 'Text':
+                ndef_text = content
+                break
+
+        self.tab_emulation.update_emulated_card(uid, card_type, ndef_text)
+
+        # Update write tab capacity hint
+        ndef_available = info.get('ndef_available', 0)
+        if ndef_available:
+            self.tab_write.update_card_capacity(ndef_available)
+
+        # NDEF-content emulation: type the stored text when mode is "ndef"
+        if (self.emulator.enabled
+                and self.tab_emulation.get_emulate_source() == "ndef"
+                and ndef_text):
+            self.emulator.type_string(ndef_text)
 
     def on_card_removed(self):
         self.lbl_card_status.setText(self.translator.get("status_card_absent"))
