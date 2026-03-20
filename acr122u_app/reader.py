@@ -113,10 +113,14 @@ class NFCReaderManager(QObject):
 
     def _get_pcsc_error_hint(self, exc):
         from diagnostics import SystemDiagnostics
-        is_running, msg = SystemDiagnostics.check_pcscd_status()
+        is_running, pcscd_msg = SystemDiagnostics.check_pcscd_status()
+        perms_ok, groups, perms_msg = SystemDiagnostics.check_user_permissions()
+
         if not is_running:
-            return msg
-        return f"تأكد من توصيل القارئ أو صلاحيات الوصول. ({msg})"
+            return pcscd_msg
+        if not perms_ok:
+            return f"{perms_msg} — انتقل إلى تبويب 'الحماية والصلاحيات' لأوامر الإصلاح."
+        return f"تأكد من توصيل القارئ أو صلاحيات الوصول. ({pcscd_msg})"
 
     def card_inserted(self, card):
         try:
