@@ -86,6 +86,34 @@ translations = {
         "opt_info": "معلومات",
         "opt_error": "أخطاء",
 
+        # Full memory dump section
+        "section_full_memory": "تفريغ الذاكرة الكاملة",
+        "no_memory_data": "لا توجد بيانات ذاكرة",
+
+        # Card protection management
+        "section_card_protection": "إدارة حماية البطاقة",
+        "lbl_new_password": "كلمة المرور الجديدة (8 أحرف هكس):",
+        "lbl_pack_code": "رمز التأكيد PACK (4 أحرف هكس):",
+        "lbl_current_password_remove": "كلمة المرور الحالية (لإزالتها):",
+        "btn_set_password": "🔒 تعيين كلمة المرور",
+        "btn_remove_password": "🔓 إزالة كلمة المرور",
+        "btn_set_readonly": "⚠️ تعيين للقراءة فقط (لا رجعة)",
+        "warn_readonly_confirm": "تحذير: هذا الإجراء دائم ولا يمكن التراجع عنه!\nهل أنت متأكد من تعيين البطاقة للقراءة فقط؟",
+        "warn_no_card": "لا توجد بطاقة متصلة",
+        "warn_invalid_hex_password": "كلمة المرور يجب أن تكون 8 أحرف هكساديسيمال (مثال: AABBCCDD)",
+        "warn_invalid_hex_pack": "رمز التأكيد يجب أن يكون 4 أحرف هكساديسيمال (مثال: AABB)",
+        "log_password_set": "تم تعيين كلمة المرور بنجاح.",
+        "log_password_removed": "تم إزالة كلمة المرور بنجاح.",
+        "log_readonly_set": "تم تعيين البطاقة للقراءة فقط بنجاح.",
+        "log_protection_error": "خطأ في إدارة الحماية: {}",
+        "lbl_protection_note": "ملاحظة: عمليات الحماية تدعم بطاقات NTAG213/215/216",
+
+        # Emulation tab display
+        "section_last_emulated": "آخر بطاقة محاكاة",
+        "lbl_emulated_uid": "المعرف الفريد المُحاكى:",
+        "lbl_emulated_type": "نوع البطاقة:",
+        "no_emulated_card": "لم يتم محاكاة أي بطاقة بعد",
+
         "msg_error": "خطأ",
         "msg_success": "نجاح",
         "msg_warning": "تحذير",
@@ -178,6 +206,34 @@ translations = {
         "opt_all": "All",
         "opt_info": "Info",
         "opt_error": "Errors",
+
+        # Full memory dump section
+        "section_full_memory": "Full Memory Dump",
+        "no_memory_data": "No memory data",
+
+        # Card protection management
+        "section_card_protection": "Card Protection Management",
+        "lbl_new_password": "New Password (8 hex chars):",
+        "lbl_pack_code": "PACK Code (4 hex chars):",
+        "lbl_current_password_remove": "Current Password (to remove):",
+        "btn_set_password": "🔒 Set Password",
+        "btn_remove_password": "🔓 Remove Password",
+        "btn_set_readonly": "⚠️ Set Read-Only (Irreversible!)",
+        "warn_readonly_confirm": "Warning: This action is PERMANENT and cannot be undone!\nAre you sure you want to set the card to read-only?",
+        "warn_no_card": "No card connected",
+        "warn_invalid_hex_password": "Password must be 8 hexadecimal characters (example: AABBCCDD)",
+        "warn_invalid_hex_pack": "PACK code must be 4 hexadecimal characters (example: AABB)",
+        "log_password_set": "Password set successfully.",
+        "log_password_removed": "Password removed successfully.",
+        "log_readonly_set": "Card set to read-only successfully.",
+        "log_protection_error": "Protection management error: {}",
+        "lbl_protection_note": "Note: Protection operations support NTAG213/215/216 cards",
+
+        # Emulation tab display
+        "section_last_emulated": "Last Emulated Card",
+        "lbl_emulated_uid": "Emulated UID:",
+        "lbl_emulated_type": "Card Type:",
+        "no_emulated_card": "No card emulated yet",
 
         "msg_error": "Error",
         "msg_success": "Success",

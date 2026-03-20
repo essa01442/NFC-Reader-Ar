@@ -301,6 +301,9 @@ class NFCReaderManager(QObject):
                 refined = refine_with_cc(info, all_pages[:16])
                 info.update(refined)
 
+                # Store raw pages data for full memory dump display
+                info['raw_pages'] = all_pages
+
                 # Parse NDEF records
                 ndef_records = parse_ndef_from_type2_memory(all_pages, start_page=4)
                 info['ndef_records'] = ndef_records
@@ -380,6 +383,154 @@ class NFCReaderManager(QObject):
             pos += length   # skip non-NDEF TLVs
 
         return 0
+
+    # ------------------------------------------------------------------
+    # Card protection management (NTAG21x)
+    # ------------------------------------------------------------------
+
+    def _get_ntag_config_pages(self, tag_type: str):
+        """Return (cfg0_page, cfg1_page, pwd_page, pack_page) based on NTAG type."""
+        t = (tag_type or '').lower()
+        if 'ntag216' in t:
+            return (226, 227, 228, 229)
+        elif 'ntag215' in t:
+            return (130, 131, 132, 133)
+        else:
+            # NTAG213 or generic Ultralight default
+            return (40, 41, 42, 43)
+
+    def _get_current_tag_type(self) -> str:
+        """Read ATR from connected card and return the tag_type string."""
+        try:
+            from nfc_utils import parse_atr
+            atr = self.connection.getATR()
+            info = parse_atr(atr)
+            return info.get('tag_type', '')
+        except Exception:
+            return ''
+
+    def _ntag_authenticate(self, pwd_bytes):
+        """Send PWD_AUTH (0x1B) to NTAG card via PN532 InDataExchange.
+
+        Raises an exception if authentication fails.
+        """
+        pwd = list(pwd_bytes[:4])
+        # InDataExchange: CLA=FF INS=00 P1=00 P2=00 Lc=08 Data=D4 42 01 1B pw0..3
+        apdu = [0xFF, 0x00, 0x00, 0x00, 0x08, 0xD4, 0x42, 0x01, 0x1B] + pwd
+        data, sw1, sw2 = self.connection.transmit(apdu)
+        if sw1 != 0x90:
+            raise Exception(f"Authentication failed: SW={sw1:02X}{sw2:02X}")
+        return data
+
+    def set_password(self, pwd_bytes, pack_bytes, auth0: int = 4):
+        """Enable password protection on an NTAG21x card.
+
+        Writes the password (PWD) and password acknowledge (PACK) pages and
+        then configures AUTH0 in the CFG0 page so that pages ``auth0`` and
+        above require authentication before any write operation.
+
+        Args:
+            pwd_bytes:  4-byte password (list or bytes).
+            pack_bytes: 2-byte password acknowledge (list or bytes).
+            auth0:      First page that requires authentication (default 4,
+                        which covers all user-data pages).
+        """
+        if not self.connection:
+            raise Exception("No card connected")
+
+        tag_type = self._get_current_tag_type()
+        cfg0_page, _cfg1_page, pwd_page, pack_page = self._get_ntag_config_pages(tag_type)
+
+        # Write PWD (4 bytes)
+        self.write_block(pwd_page, list(pwd_bytes[:4]))
+
+        # Write PACK (2 bytes) + 2 reserved zero bytes
+        self.write_block(pack_page, list(pack_bytes[:2]) + [0x00, 0x00])
+
+        # Update AUTH0 byte (byte 3) in CFG0, preserving the other bytes
+        try:
+            cfg0_data = list(self.read_block(cfg0_page)[:4])
+        except Exception:
+            cfg0_data = [0x00, 0x00, 0x00, 0xFF]
+        cfg0_data[3] = auth0
+        self.write_block(cfg0_page, cfg0_data)
+
+        return True
+
+    def remove_password(self, current_pwd_bytes=None):
+        """Disable password protection on an NTAG21x card.
+
+        Optionally authenticates with *current_pwd_bytes* first (required when
+        the card is already protected), then resets PWD to ``0xFFFFFFFF`` and
+        AUTH0 to ``0xFF`` (no protection).
+
+        Args:
+            current_pwd_bytes: Optional 4-byte current password for
+                               authentication before writing.
+        """
+        if not self.connection:
+            raise Exception("No card connected")
+
+        tag_type = self._get_current_tag_type()
+        cfg0_page, _cfg1_page, pwd_page, pack_page = self._get_ntag_config_pages(tag_type)
+
+        if current_pwd_bytes:
+            self._ntag_authenticate(current_pwd_bytes)
+
+        # Reset PWD to default (all 0xFF = no password)
+        self.write_block(pwd_page, [0xFF, 0xFF, 0xFF, 0xFF])
+
+        # Reset PACK to default (all zeros)
+        self.write_block(pack_page, [0x00, 0x00, 0x00, 0x00])
+
+        # Set AUTH0 = 0xFF in CFG0 (no authentication required)
+        try:
+            cfg0_data = list(self.read_block(cfg0_page)[:4])
+        except Exception:
+            cfg0_data = [0x00, 0x00, 0x00, 0xFF]
+        cfg0_data[3] = 0xFF
+        self.write_block(cfg0_page, cfg0_data)
+
+        return True
+
+    def set_read_only(self):
+        """Make the card permanently read-only.
+
+        Sets the static lock bits in page 2 (bytes 2-3) and marks the NDEF
+        Capability Container (page 3) as read-only.
+
+        .. warning::
+            This action is **irreversible**.  Once the lock bits are set they
+            cannot be cleared, even by writing.
+        """
+        if not self.connection:
+            raise Exception("No card connected")
+
+        # --- Static lock bits: page 2 bytes 2-3 ---------------------------
+        # Page 2 layout: [Internal, Reserved, LOCK0, LOCK1]
+        # LOCK0 = 0xFF → pages 3-9 + OTP locked
+        # LOCK1 = 0xFF → pages 10-15 locked
+        try:
+            page2_data = list(self.read_block(2)[:4])
+        except Exception:
+            page2_data = [0x00, 0x00, 0x00, 0x00]
+        page2_data[2] = 0xFF  # LOCK0
+        page2_data[3] = 0xFF  # LOCK1
+        self.write_block(2, page2_data)
+
+        # --- NDEF CC: mark read-only (page 3, byte 3 → 0x0F) -------------
+        # CC layout: [0xE1, version, size, access]
+        # access = 0x00 → read-write, 0x0F → read-only
+        try:
+            cc_data = list(self.read_block(3)[:4])
+        except Exception:
+            cc_data = [0xE1, 0x10, 0x12, 0x00]
+        cc_data[3] = 0x0F
+        self.write_block(3, cc_data)
+
+        return True
+
+    # ------------------------------------------------------------------
 
     def card_removed(self, card):
         self.connection = None

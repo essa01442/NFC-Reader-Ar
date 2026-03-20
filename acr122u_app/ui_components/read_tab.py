@@ -133,6 +133,19 @@ class ReadTab(QWidget):
         raw_layout.addLayout(btn_row)
 
         layout.addWidget(self.grp_raw)
+
+        # ── Full memory dump ────────────────────────────────────────────
+        self.grp_memory = QGroupBox(self.translator.get("section_full_memory"))
+        memory_layout = QVBoxLayout(self.grp_memory)
+
+        self.txt_memory_dump = QTextEdit()
+        self.txt_memory_dump.setReadOnly(True)
+        self.txt_memory_dump.setFont(QFont("Monospace", 9))
+        self.txt_memory_dump.setMinimumHeight(200)
+        self.txt_memory_dump.setPlaceholderText(self.translator.get("no_memory_data"))
+        memory_layout.addWidget(self.txt_memory_dump)
+
+        layout.addWidget(self.grp_memory)
         layout.addStretch()
 
         scroll.setWidget(container)
@@ -209,14 +222,21 @@ class ReadTab(QWidget):
         # NDEF records
         self._populate_ndef_records(info.get('ndef_records', []))
 
+        # Full memory dump
+        raw_pages = info.get('raw_pages')
+        if raw_pages:
+            self._populate_memory_dump(raw_pages, info.get('page_size', 4))
+        else:
+            self.txt_memory_dump.clear()
+
     def clear_data(self):
         """Clear all displayed data (called on card removal)."""
         self.txt_uid.clear()
         self.txt_read_data.clear()
+        self.txt_memory_dump.clear()
 
-        unk = self.translator.get("val_unknown")
         for row in self._info_rows.values():
-            row.set_value(unk)
+            row.set_value("")
 
         self._clear_ndef_section()
         self.lbl_no_ndef.show()
@@ -254,6 +274,25 @@ class ReadTab(QWidget):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _populate_memory_dump(self, raw_pages: bytes, page_size: int = 4):
+        """Render the full card memory as a formatted hex + ASCII dump."""
+        lines = []
+        if page_size <= 0:
+            page_size = 4
+        total_bytes = len(raw_pages)
+        total_pages = total_bytes // page_size
+
+        for page_num in range(total_pages):
+            offset = page_num * page_size
+            chunk = raw_pages[offset: offset + page_size]
+            hex_part = ' '.join(f'{b:02X}' for b in chunk)
+            text_part = ''.join(
+                chr(b) if 32 <= b < 127 else '.' for b in chunk
+            )
+            lines.append(f"Page {page_num:03d} | {hex_part:<{page_size * 3 - 1}} | {text_part}")
+
+        self.txt_memory_dump.setPlainText('\n'.join(lines))
 
     def _clear_ndef_section(self):
         while self._ndef_layout.count() > 0:
@@ -297,6 +336,8 @@ class ReadTab(QWidget):
         self.grp_info.setTitle(self.translator.get("section_card_info"))
         self.grp_ndef.setTitle(self.translator.get("section_ndef"))
         self.grp_raw.setTitle(self.translator.get("section_raw_read"))
+        self.grp_memory.setTitle(self.translator.get("section_full_memory"))
+        self.txt_memory_dump.setPlaceholderText(self.translator.get("no_memory_data"))
 
         labels_map = {
             'tag_type':          'lbl_tag_type',

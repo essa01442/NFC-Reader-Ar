@@ -215,3 +215,122 @@ def test_restart_monitors(reader_manager):
         mock_cleanup.assert_called_once()
         mock_init.assert_called_once()
         mock_scan.assert_called_once()
+
+
+# ── Card protection management tests ─────────────────────────────────────────
+
+def test_get_ntag_config_pages_ntag213(reader_manager):
+    assert reader_manager._get_ntag_config_pages('NXP NTAG213') == (40, 41, 42, 43)
+
+def test_get_ntag_config_pages_ntag215(reader_manager):
+    assert reader_manager._get_ntag_config_pages('NXP NTAG215') == (130, 131, 132, 133)
+
+def test_get_ntag_config_pages_ntag216(reader_manager):
+    assert reader_manager._get_ntag_config_pages('NXP NTAG216') == (226, 227, 228, 229)
+
+def test_get_ntag_config_pages_default(reader_manager):
+    assert reader_manager._get_ntag_config_pages('Unknown') == (40, 41, 42, 43)
+    assert reader_manager._get_ntag_config_pages('') == (40, 41, 42, 43)
+    assert reader_manager._get_ntag_config_pages(None) == (40, 41, 42, 43)
+
+def test_set_password_no_card(reader_manager):
+    reader_manager.connection = None
+    with pytest.raises(Exception, match="No card connected"):
+        reader_manager.set_password([0xAA, 0xBB, 0xCC, 0xDD], [0x11, 0x22])
+
+def test_remove_password_no_card(reader_manager):
+    reader_manager.connection = None
+    with pytest.raises(Exception, match="No card connected"):
+        reader_manager.remove_password()
+
+def test_set_read_only_no_card(reader_manager):
+    reader_manager.connection = None
+    with pytest.raises(Exception, match="No card connected"):
+        reader_manager.set_read_only()
+
+def test_set_password_writes_correct_pages(reader_manager):
+    """set_password should write PWD, PACK and configure AUTH0 in CFG0."""
+    reader_manager.connection = Mock()
+    # ATR for NTAG213: ATR bytes [13,14] = (0x00, 0x26) → Ultralight
+    reader_manager.connection.getATR.return_value = [
+        0x3B, 0x8F, 0x80, 0x01, 0x80, 0x4F, 0x0C, 0xA0,
+        0x00, 0x00, 0x03, 0x06, 0x11, 0x00, 0x26, 0x00,
+    ]
+    # read_block (CFG0 read) returns 16 zero bytes with success
+    reader_manager.connection.transmit.return_value = ([0x00] * 16, 0x90, 0x00)
+
+    result = reader_manager.set_password([0xAA, 0xBB, 0xCC, 0xDD], [0x11, 0x22], auth0=4)
+    assert result is True
+
+    # Should have called transmit for: read CFG0 + write PWD + write PACK + write CFG0
+    assert reader_manager.connection.transmit.call_count >= 3
+
+def test_remove_password_writes_defaults(reader_manager):
+    """remove_password should reset PWD to 0xFFFFFFFF and AUTH0 to 0xFF."""
+    reader_manager.connection = Mock()
+    reader_manager.connection.getATR.return_value = [
+        0x3B, 0x8F, 0x80, 0x01, 0x80, 0x4F, 0x0C, 0xA0,
+        0x00, 0x00, 0x03, 0x06, 0x11, 0x00, 0x26, 0x00,
+    ]
+    reader_manager.connection.transmit.return_value = ([0x00] * 16, 0x90, 0x00)
+
+    result = reader_manager.remove_password()
+    assert result is True
+    # Check that 0xFFFFFFFF was written to PWD page (page 42 for NTAG213)
+    write_calls = [
+        call for call in reader_manager.connection.transmit.call_args_list
+        if call[0][0][1] == 0xD6  # WRITE APDU (FF D6 ...)
+    ]
+    pwd_write = next(
+        (c for c in write_calls if c[0][0][3] == 42),  # page 42 = PWD page for NTAG213
+        None,
+    )
+    assert pwd_write is not None, "No write to PWD page (42) found"
+    assert pwd_write[0][0][5:9] == [0xFF, 0xFF, 0xFF, 0xFF], "PWD not reset to 0xFFFFFFFF"
+
+def test_set_read_only_writes_lock_bits(reader_manager):
+    """set_read_only should set 0xFF to lock bytes and 0x0F to CC access byte."""
+    reader_manager.connection = Mock()
+    reader_manager.connection.transmit.return_value = ([0x00] * 16, 0x90, 0x00)
+
+    result = reader_manager.set_read_only()
+    assert result is True
+
+    write_calls = [
+        call for call in reader_manager.connection.transmit.call_args_list
+        if call[0][0][1] == 0xD6
+    ]
+    # Page 2 write: bytes 2-3 should be 0xFF
+    page2_write = next((c for c in write_calls if c[0][0][3] == 2), None)
+    assert page2_write is not None, "No write to page 2"
+    assert page2_write[0][0][7] == 0xFF, "LOCK0 not set to 0xFF"
+    assert page2_write[0][0][8] == 0xFF, "LOCK1 not set to 0xFF"
+
+    # Page 3 write: CC access byte (byte 3) should be 0x0F
+    page3_write = next((c for c in write_calls if c[0][0][3] == 3), None)
+    assert page3_write is not None, "No write to page 3 (CC)"
+    assert page3_write[0][0][8] == 0x0F, "CC access byte not set to 0x0F"
+
+def test_collect_card_info_stores_raw_pages(reader_manager):
+    """_collect_card_info should include 'raw_pages' for Type 2 cards."""
+    reader_manager.connection = Mock()
+    # ATR for MIFARE Ultralight (Type 2) → bytes 13,14 = 0x00, 0x26
+    reader_manager.connection.getATR.return_value = [
+        0x3B, 0x8F, 0x80, 0x01, 0x80, 0x4F, 0x0C, 0xA0,
+        0x00, 0x00, 0x03, 0x06, 0x11, 0x00, 0x26, 0x00,
+    ]
+    # Return 16 bytes per read (4 pages) with 0x90 0x00 success, then error to stop
+    call_count = [0]
+    def side_effect(apdu):
+        call_count[0] += 1
+        if call_count[0] <= 4:
+            return ([0xE1, 0x10, 0x06, 0x00] * 4, 0x90, 0x00)
+        return ([], 0x63, 0x00)  # Stop reading
+    reader_manager.connection.transmit.side_effect = side_effect
+
+    uid_data = [0x04, 0x82, 0x3E, 0x01, 0x2A, 0x4D, 0x03]
+    info = reader_manager._collect_card_info(uid_data)
+
+    assert 'raw_pages' in info, "'raw_pages' key should be in card info"
+    assert isinstance(info['raw_pages'], (bytes, bytearray)), "raw_pages should be bytes"
+    assert len(info['raw_pages']) > 0, "raw_pages should not be empty"
