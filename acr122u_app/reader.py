@@ -312,6 +312,30 @@ class NFCReaderManager(QObject):
                 # Determine used NDEF bytes from TLV at start of user area
                 ndef_used = self._get_ndef_message_length(all_pages, start_page=4)
                 info['ndef_used'] = ndef_used
+        else:
+            # Fallback: ATR may have misidentified an NTAG card.  Attempt a
+            # Type 2 page read starting at page 0 (using NTAG216 max pages so
+            # the loop terminates naturally on shorter cards) and check for
+            # the NFC Forum Capability Container magic byte (0xE1) at page 3,
+            # byte 0 = offset 12 of the first 16 bytes.
+            try:
+                fallback_info = dict(info)
+                fallback_info['page_size'] = 4
+                fallback_info['data_format'] = 'NFC Forum Type 2'
+                # Use NTAG216 page count as the upper limit; _read_all_pages_type2
+                # stops on the first read error, so shorter cards are handled safely.
+                fallback_info['memory_pages'] = 231
+                all_pages = self._read_all_pages_type2(fallback_info)
+                if all_pages and len(all_pages) >= 16 and all_pages[12] == 0xE1:
+                    refined = refine_with_cc(fallback_info, all_pages[:16])
+                    info.update(refined)
+                    info['raw_pages'] = all_pages
+                    ndef_records = parse_ndef_from_type2_memory(all_pages, start_page=4)
+                    info['ndef_records'] = ndef_records
+                    ndef_used = self._get_ndef_message_length(all_pages, start_page=4)
+                    info['ndef_used'] = ndef_used
+            except Exception:
+                pass
 
         return info
 

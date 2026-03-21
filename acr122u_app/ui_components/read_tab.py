@@ -6,6 +6,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+from nfc_utils import parse_ndef_from_type2_memory
+
 
 class _InfoRow(QWidget):
     """A two-column label row used inside the card-info panel."""
@@ -254,10 +256,31 @@ class ReadTab(QWidget):
             data = self.nfc_manager.read_block(block_num)
             hex_data = " ".join([f"{b:02X}" for b in data])
 
-            # Also show a decoded text representation alongside the hex
-            decoded = bytes(data).decode('utf-8', errors='replace')
-            printable = ''.join(c if c.isprintable() else '.' for c in decoded)
-            display = f"HEX: {hex_data}\nTEXT: {printable}"
+            # Try NDEF decoding first so meaningful text is shown when the
+            # block contains user data (e.g. page 4+ on NTAG/Ultralight).
+            ndef_text = None
+            try:
+                records = parse_ndef_from_type2_memory(bytes(data), start_page=0)
+                if records:
+                    ndef_text = ' | '.join(
+                        r['content'] for r in records if r.get('content')
+                    )
+            except Exception:
+                pass
+
+            if ndef_text:
+                display = f"HEX: {hex_data}\nNDEF: {ndef_text}"
+            else:
+                # Only include the TEXT line when at least half the bytes are
+                # printable ASCII; otherwise the result is just garbled noise.
+                printable = [chr(b) for b in data if 32 <= b < 127]
+                if len(printable) > len(data) // 2:
+                    text_str = ''.join(
+                        chr(b) if 32 <= b < 127 else '.' for b in data
+                    )
+                    display = f"HEX: {hex_data}\nTEXT: {text_str}"
+                else:
+                    display = f"HEX: {hex_data}"
 
             self.txt_read_data.setText(display)
             msg = self.translator.get("log_read_success") + f" (Block {block_num})"

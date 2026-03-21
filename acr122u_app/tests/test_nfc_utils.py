@@ -71,12 +71,21 @@ class TestParseAtr:
 
 class TestRefineWithCC:
     # First 16 bytes of NTAG215 memory (pages 0-3)
-    # Page 3 = CC = E1 10 6D 00
+    # Page 3 = CC = E1 10 3E 00  (CC[2]=0x3E identifies NTAG215)
     NTAG215_PAGES_0_3 = [
         0x04, 0x82, 0x3E, 0x01,   # page 0: UID[0-2] + BCC0
         0x2A, 0x4D, 0x03, 0xFE,   # page 1: UID[3-6]
         0x48, 0x00, 0x00, 0x00,   # page 2: BCC1 + LOCK
-        0xE1, 0x10, 0x6D, 0x00,   # page 3: CC
+        0xE1, 0x10, 0x3E, 0x00,   # page 3: CC  (0x3E = NTAG215)
+    ]
+
+    # First 16 bytes of NTAG216 memory (pages 0-3)
+    # Page 3 = CC = E1 10 6D 00  (CC[2]=0x6D identifies NTAG216)
+    NTAG216_PAGES_0_3 = [
+        0x04, 0x82, 0x3E, 0x01,   # page 0: UID[0-2] + BCC0
+        0x2A, 0x4D, 0x03, 0xFE,   # page 1: UID[3-6]
+        0x48, 0x00, 0x00, 0x00,   # page 2: BCC1 + LOCK
+        0xE1, 0x10, 0x6D, 0x00,   # page 3: CC  (0x6D = NTAG216)
     ]
 
     BASE_ULTRALIGHT_INFO = {
@@ -96,6 +105,13 @@ class TestRefineWithCC:
         assert info['memory_pages'] == 135
         assert info['ndef_available'] == 492
         assert 'Ndef' in info['technologies']
+
+    def test_ntag216_identified(self):
+        info = refine_with_cc(self.BASE_ULTRALIGHT_INFO, self.NTAG216_PAGES_0_3)
+        assert info['tag_type'] == 'NXP NTAG216'
+        assert info['memory_bytes'] == 924
+        assert info['memory_pages'] == 231
+        assert info['ndef_available'] == 872
 
     def test_no_ndef_magic_unchanged(self):
         pages = list(self.NTAG215_PAGES_0_3)
@@ -265,7 +281,7 @@ class TestCollectCardInfo:
 
         # Build a 16-page (64-byte) fake NTAG memory with NDEF CC at page 3
         # and a text record "Test" at page 4
-        ntag215_cc = [0xE1, 0x10, 0x6D, 0x00]
+        ntag215_cc = [0xE1, 0x10, 0x3E, 0x00]  # CC[2]=0x3E identifies NTAG215
         text_payload = bytes([2]) + b'en' + b'Test'
         ndef_msg = bytes([0b11010001, 1, len(text_payload), ord('T')]) + text_payload
         ndef_tlv = bytes([0x03, len(ndef_msg)]) + ndef_msg + bytes([0xFE])
@@ -318,3 +334,52 @@ class TestCollectCardInfo:
         assert isinstance(info, dict)
         assert info['uid_formatted'] == '04:11:22'
         assert info['ndef_records'] == []
+
+    def test_collect_info_cc_fallback_for_misidentified_ntag(self):
+        """CC-based fallback: ATR says non-Type-2, but CC reveals NTAG215."""
+        from unittest.mock import Mock
+        manager = self._make_manager()
+
+        # ATR identifies card as MIFARE Classic Mini (bytes 13,14 = 0x00,0x03)
+        mifare_mini_atr = [
+            0x3B, 0x8F, 0x80, 0x01, 0x80, 0x4F, 0x0C, 0xA0,
+            0x00, 0x00, 0x03, 0x06, 0x03, 0x00, 0x03, 0x00,
+            0x00, 0x00, 0x00, 0x6A,
+        ]
+
+        # Build fake NTAG215 memory (CC at page 3 = 0xE1 10 3E 00)
+        ntag215_cc = [0xE1, 0x10, 0x3E, 0x00]
+        text_payload = bytes([2]) + b'en' + b'Hi'
+        ndef_msg = bytes([0b11010001, 1, len(text_payload), ord('T')]) + text_payload
+        ndef_tlv = bytes([0x03, len(ndef_msg)]) + ndef_msg + bytes([0xFE])
+
+        mem = bytearray(540)  # 135 pages × 4 bytes
+        mem[12:16] = ntag215_cc
+        for i, b in enumerate(ndef_tlv):
+            mem[16 + i] = b
+
+        conn_mock = Mock()
+        conn_mock.getATR.return_value = mifare_mini_atr
+
+        # Transmit returns 16-byte chunks until the end of the 135-page memory.
+        read_responses = []
+        page = 0
+        while page < 135:
+            chunk = list(mem[page * 4: page * 4 + 16])
+            read_responses.append((chunk, 0x90, 0x00))
+            page += 4
+        conn_mock.transmit.side_effect = read_responses
+
+        manager.connection = conn_mock
+
+        uid_data = [0x04, 0x82, 0x3E, 0x01, 0x2A, 0x4D, 0x03]
+        info = manager._collect_card_info(uid_data)
+
+        # The CC-based fallback should have identified this as NTAG215
+        assert info['tag_type'] == 'NXP NTAG215', (
+            f"Expected NTAG215 via CC fallback, got {info['tag_type']!r}"
+        )
+        assert info['memory_bytes'] == 540
+        assert len(info['ndef_records']) == 1
+        assert info['ndef_records'][0]['content'] == 'Hi'
+        assert 'raw_pages' in info

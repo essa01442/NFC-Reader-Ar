@@ -99,8 +99,7 @@ CARD_TYPE_DB = {
 NTAG_BY_CC2 = {
     0x12: ('NXP NTAG213', 180, 45, 144, 132),
     0x3E: ('NXP NTAG215', 540, 135, 504, 492),
-    0x6D: ('NXP NTAG215', 540, 135, 504, 492),
-    0xE1: ('NXP NTAG216', 924, 231, 888, 872),
+    0x6D: ('NXP NTAG216', 924, 231, 888, 872),
 }
 
 # NDEF URI prefix table (NFC Forum URI Record Type Definition)
