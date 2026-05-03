@@ -81,33 +81,43 @@ class ThemeManager:
 
     @staticmethod
     def get_dark_theme():
+        # Colors inspired by NFC Tools:
+        # BACKGROUND = "#1a1a2e"
+        # SURFACE = "#16213e"
+        # ACCENT = "#0f3460"
+        # HIGHLIGHT = "#533483"
+        # TEXT_PRIMARY = "#e0e0e0"
+        # SUCCESS = "#4caf50"
+        # ERROR = "#f44336"
+        # BORDER = "#2d2d44"
+
         return """
             QMainWindow {
-                background-color: #1e272e;
+                background-color: #1a1a2e;
             }
             QWidget {
-                color: #d2dae2;
+                color: #e0e0e0;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             }
             QTabWidget::pane {
-                border: 1px solid #485460;
-                background-color: #2c3e50;
+                border: 1px solid #2d2d44;
+                background-color: #16213e;
                 border-radius: 6px;
             }
             QTabBar::tab {
-                background-color: #3a86c8;
-                color: white;
-                padding: 8px 16px;
+                background-color: #0f3460;
+                color: #e0e0e0;
+                padding: 10px 20px;
                 border-top-left-radius: 6px;
                 border-top-right-radius: 6px;
-                margin-right: 2px;
+                margin-right: 4px;
             }
             QTabBar::tab:selected {
-                background-color: #2a6099;
+                background-color: #533483;
                 font-weight: bold;
             }
             QPushButton {
-                background-color: #0097e6;
+                background-color: #0f3460;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -115,41 +125,71 @@ class ThemeManager:
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #00a8ff;
+                background-color: #533483;
             }
             QPushButton:pressed {
-                background-color: #0082c8;
+                background-color: #16213e;
             }
             QPushButton:disabled {
-                background-color: #485460;
-                color: #808e9b;
+                background-color: #2d2d44;
+                color: #9e9e9e;
             }
             QLineEdit, QTextEdit, QSpinBox, QComboBox {
-                background-color: #34495e;
-                border: 1px solid #485460;
+                background-color: #16213e;
+                border: 1px solid #2d2d44;
                 padding: 6px;
                 border-radius: 4px;
-                color: #ecf0f1;
+                color: #e0e0e0;
             }
             QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {
-                border: 1px solid #0097e6;
+                border: 1px solid #533483;
             }
             QGroupBox {
-                border: 1px solid #485460;
+                border: 1px solid #2d2d44;
                 border-radius: 6px;
                 margin-top: 14px;
-                background-color: #2c3e50;
-                padding-top: 10px;
+                background-color: #16213e;
+                padding-top: 15px;
                 font-weight: bold;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top center;
-                padding: 0 5px;
-                color: #3a86c8;
+                padding: 0 10px;
+                color: #e0e0e0;
             }
             QStatusBar {
-                background-color: #2c3e50;
-                border-top: 1px solid #485460;
+                background-color: #16213e;
+                border-top: 1px solid #2d2d44;
+                color: #e0e0e0;
+            }
+            QScrollArea {
+                border: none;
+                background-color: transparent;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #1a1a2e;
+                width: 10px;
+                margin: 0px 0px 0px 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: #2d2d44;
+                min-height: 20px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #533483;
+            }
+            QHeaderView::section {
+                background-color: #0f3460;
+                color: white;
+                padding: 4px;
+                border: 1px solid #2d2d44;
+            }
+            QTableWidget {
+                gridline-color: #2d2d44;
+                background-color: #16213e;
+                alternate-background-color: #1a1a2e;
             }
         """

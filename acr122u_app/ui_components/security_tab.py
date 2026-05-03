@@ -1,8 +1,8 @@
 import platform
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTextEdit, QGroupBox, QScrollArea, QFrame, QApplication,
-    QLineEdit, QMessageBox,
+    QGroupBox, QScrollArea, QFrame, QApplication,
+    QLineEdit, QMessageBox, QTextEdit
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont
@@ -41,81 +41,6 @@ class SecurityTab(QWidget):
         font.setPointSize(11)
         self.lbl_title.setFont(font)
         outer.addWidget(self.lbl_title)
-
-        # ── Card Protection Management ─────────────────────────────────────
-        prot_group = QGroupBox(self.translator.get(
-            "section_card_protection", "إدارة حماية البطاقة"))
-        prot_layout = QVBoxLayout(prot_group)
-        prot_layout.setSpacing(8)
-
-        # Note label
-        self.lbl_protection_note = QLabel(self.translator.get(
-            "lbl_protection_note",
-            "ملاحظة: عمليات الحماية تدعم بطاقات NTAG213/215/216"))
-        self.lbl_protection_note.setWordWrap(True)
-        self.lbl_protection_note.setStyleSheet("color: gray; font-style: italic;")
-        prot_layout.addWidget(self.lbl_protection_note)
-
-        # ─ Set password row ─────────────────────────────────────────────
-        set_pwd_row = QHBoxLayout()
-        self.lbl_new_password = QLabel(self.translator.get(
-            "lbl_new_password", "كلمة المرور الجديدة (8 أحرف هكس):"))
-        set_pwd_row.addWidget(self.lbl_new_password)
-        self.txt_new_password = QLineEdit()
-        self.txt_new_password.setPlaceholderText("AABBCCDD")
-        self.txt_new_password.setMaxLength(8)
-        self.txt_new_password.setFixedWidth(120)
-        set_pwd_row.addWidget(self.txt_new_password)
-
-        self.lbl_pack_code = QLabel(self.translator.get(
-            "lbl_pack_code", "رمز التأكيد PACK (4 أحرف هكس):"))
-        set_pwd_row.addWidget(self.lbl_pack_code)
-        self.txt_pack_code = QLineEdit()
-        self.txt_pack_code.setPlaceholderText("AABB")
-        self.txt_pack_code.setMaxLength(4)
-        self.txt_pack_code.setFixedWidth(80)
-        set_pwd_row.addWidget(self.txt_pack_code)
-
-        self.btn_set_password = QPushButton(self.translator.get(
-            "btn_set_password", "🔒 تعيين كلمة المرور"))
-        self.btn_set_password.clicked.connect(self._on_set_password)
-        set_pwd_row.addWidget(self.btn_set_password)
-        set_pwd_row.addStretch()
-        prot_layout.addLayout(set_pwd_row)
-
-        # ─ Remove password row ──────────────────────────────────────────
-        rem_pwd_row = QHBoxLayout()
-        self.lbl_current_password_remove = QLabel(self.translator.get(
-            "lbl_current_password_remove", "كلمة المرور الحالية (لإزالتها):"))
-        rem_pwd_row.addWidget(self.lbl_current_password_remove)
-        self.txt_current_password = QLineEdit()
-        self.txt_current_password.setPlaceholderText("AABBCCDD")
-        self.txt_current_password.setMaxLength(8)
-        self.txt_current_password.setFixedWidth(120)
-        self.txt_current_password.setEchoMode(QLineEdit.EchoMode.Password)
-        rem_pwd_row.addWidget(self.txt_current_password)
-
-        self.btn_remove_password = QPushButton(self.translator.get(
-            "btn_remove_password", "🔓 إزالة كلمة المرور"))
-        self.btn_remove_password.clicked.connect(self._on_remove_password)
-        rem_pwd_row.addWidget(self.btn_remove_password)
-        rem_pwd_row.addStretch()
-        prot_layout.addLayout(rem_pwd_row)
-
-        # ─ Read-only row ─────────────────────────────────────────────────
-        readonly_row = QHBoxLayout()
-        self.btn_set_readonly = QPushButton(self.translator.get(
-            "btn_set_readonly", "⚠️ تعيين للقراءة فقط (لا رجعة)"))
-        self.btn_set_readonly.setStyleSheet(
-            "QPushButton { color: white; background-color: #cc4400; }"
-            "QPushButton:hover { background-color: #aa3300; }"
-        )
-        self.btn_set_readonly.clicked.connect(self._on_set_readonly)
-        readonly_row.addWidget(self.btn_set_readonly)
-        readonly_row.addStretch()
-        prot_layout.addLayout(readonly_row)
-
-        outer.addWidget(prot_group)
 
         # ── Run diagnostics button ─────────────────────────────────────────
         self.btn_run = QPushButton(self.translator.get(
@@ -184,8 +109,6 @@ class SecurityTab(QWidget):
 
         outer.addStretch()
 
-    # ── Card protection actions ───────────────────────────────────────────────
-
     def update_card_info(self, info: dict):
         """Called when a new card is detected; stores info for protection ops."""
         self._current_card_info = info
@@ -193,127 +116,6 @@ class SecurityTab(QWidget):
     def clear_card_info(self):
         """Called when card is removed."""
         self._current_card_info = None
-
-    def _check_card_connected(self) -> bool:
-        if not self.nfc_manager or not self.nfc_manager.connection:
-            QMessageBox.warning(
-                self,
-                self.translator.get("msg_warning", "تحذير"),
-                self.translator.get("warn_no_card", "لا توجد بطاقة متصلة"),
-            )
-            return False
-        return True
-
-    @staticmethod
-    def _parse_hex(text: str, expected_bytes: int):
-        """Parse a hex string into a list of bytes; raises ValueError on bad input."""
-        text = text.strip().upper().replace(' ', '')
-        if len(text) != expected_bytes * 2:
-            raise ValueError(f"Expected {expected_bytes * 2} hex chars, got {len(text)}")
-        return [int(text[i:i+2], 16) for i in range(0, len(text), 2)]
-
-    def _on_set_password(self):
-        if not self._check_card_connected():
-            return
-
-        pwd_text = self.txt_new_password.text().strip()
-        pack_text = self.txt_pack_code.text().strip() or "0000"
-
-        try:
-            pwd_bytes = self._parse_hex(pwd_text, 4)
-        except Exception:
-            QMessageBox.warning(
-                self,
-                self.translator.get("msg_warning", "تحذير"),
-                self.translator.get("warn_invalid_hex_password"),
-            )
-            return
-
-        try:
-            pack_bytes = self._parse_hex(pack_text, 2)
-        except Exception:
-            QMessageBox.warning(
-                self,
-                self.translator.get("msg_warning", "تحذير"),
-                self.translator.get("warn_invalid_hex_pack"),
-            )
-            return
-
-        try:
-            self.nfc_manager.set_password(pwd_bytes, pack_bytes)
-            QMessageBox.information(
-                self,
-                self.translator.get("msg_success", "نجاح"),
-                self.translator.get("log_password_set"),
-            )
-            self.txt_new_password.clear()
-            self.txt_pack_code.clear()
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                self.translator.get("msg_error", "خطأ"),
-                self.translator.get("log_protection_error", str(e)),
-            )
-
-    def _on_remove_password(self):
-        if not self._check_card_connected():
-            return
-
-        pwd_text = self.txt_current_password.text().strip()
-        current_pwd = None
-        if pwd_text:
-            try:
-                current_pwd = self._parse_hex(pwd_text, 4)
-            except Exception:
-                QMessageBox.warning(
-                    self,
-                    self.translator.get("msg_warning", "تحذير"),
-                    self.translator.get("warn_invalid_hex_password"),
-                )
-                return
-
-        try:
-            self.nfc_manager.remove_password(current_pwd)
-            QMessageBox.information(
-                self,
-                self.translator.get("msg_success", "نجاح"),
-                self.translator.get("log_password_removed"),
-            )
-            self.txt_current_password.clear()
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                self.translator.get("msg_error", "خطأ"),
-                self.translator.get("log_protection_error", str(e)),
-            )
-
-    def _on_set_readonly(self):
-        if not self._check_card_connected():
-            return
-
-        reply = QMessageBox.question(
-            self,
-            self.translator.get("msg_warning", "تحذير"),
-            self.translator.get("warn_readonly_confirm"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        try:
-            self.nfc_manager.set_read_only()
-            QMessageBox.information(
-                self,
-                self.translator.get("msg_success", "نجاح"),
-                self.translator.get("log_readonly_set"),
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                self.translator.get("msg_error", "خطأ"),
-                self.translator.get("log_protection_error", str(e)),
-            )
 
     # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -434,10 +236,3 @@ class SecurityTab(QWidget):
             "security_title", "الصلاحيات وتشخيص الجهاز / Permissions & Device Diagnostics"))
         self.btn_run.setText(self.translator.get(
             "btn_run_diagnostics", "▶ تشغيل التشخيص / Run Diagnostics"))
-        self.lbl_protection_note.setText(self.translator.get("lbl_protection_note"))
-        self.lbl_new_password.setText(self.translator.get("lbl_new_password"))
-        self.lbl_pack_code.setText(self.translator.get("lbl_pack_code"))
-        self.lbl_current_password_remove.setText(self.translator.get("lbl_current_password_remove"))
-        self.btn_set_password.setText(self.translator.get("btn_set_password"))
-        self.btn_remove_password.setText(self.translator.get("btn_remove_password"))
-        self.btn_set_readonly.setText(self.translator.get("btn_set_readonly"))

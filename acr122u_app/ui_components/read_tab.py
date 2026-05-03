@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QTextEdit, QSpinBox, QScrollArea, QFrame,
-    QGroupBox, QGridLayout,
+    QGroupBox, QGridLayout, QApplication
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 
 from nfc_utils import parse_ndef_from_type2_memory
@@ -31,12 +31,25 @@ class _InfoRow(QWidget):
         self.lbl_value.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
+        self.lbl_value.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lbl_value.setToolTip("انقر للنسخ / Click to copy")
 
         layout.addWidget(self.lbl_key)
         layout.addWidget(self.lbl_value, stretch=1)
 
+        self.mousePressEvent = self._on_click
+
     def set_value(self, text):
         self.lbl_value.setText(text)
+
+    def _on_click(self, event):
+        text = self.lbl_value.text()
+        if text and text != "—":
+            QApplication.clipboard().setText(text)
+            # Visual feedback
+            old_style = self.styleSheet()
+            self.setStyleSheet("background-color: #533483;")
+            QTimer.singleShot(200, lambda: self.setStyleSheet(old_style))
 
 
 class ReadTab(QWidget):
@@ -69,6 +82,25 @@ class ReadTab(QWidget):
         layout = QVBoxLayout(container)
         layout.setSpacing(10)
 
+        # ── Registry Info Card (Hidden by default) ─────────────────────
+        self.frame_registry = QFrame()
+        self.frame_registry.setStyleSheet("""
+            QFrame {
+                background-color: #4caf50;
+                border-radius: 8px;
+                color: white;
+            }
+        """)
+        self.frame_registry.setVisible(False)
+        reg_layout = QVBoxLayout(self.frame_registry)
+        self.lbl_registry_title = QLabel("")
+        self.lbl_registry_title.setStyleSheet("font-weight: bold; font-size: 11pt;")
+        reg_layout.addWidget(self.lbl_registry_title)
+        self.lbl_registry_update = QLabel("")
+        self.lbl_registry_update.setStyleSheet("font-size: 9pt;")
+        reg_layout.addWidget(self.lbl_registry_update)
+        layout.addWidget(self.frame_registry)
+
         # ── Card Information group ─────────────────────────────────────
         self.grp_info = QGroupBox(self.translator.get("section_card_info"))
         info_layout = QVBoxLayout(self.grp_info)
@@ -85,6 +117,7 @@ class ReadTab(QWidget):
         add_row('serial_number',     'lbl_serial_number')
         add_row('atqa',              'lbl_atqa')
         add_row('sak',               'lbl_sak')
+        add_row('signature',         'lbl_signature')
         add_row('password_protected','lbl_password_protected')
         add_row('memory_info',       'lbl_memory_info')
         add_row('data_format',       'lbl_data_format')
@@ -188,6 +221,19 @@ class ReadTab(QWidget):
 
         self._info_rows['atqa'].set_value(_val('atqa'))
         self._info_rows['sak'].set_value(_val('sak'))
+
+        # Signature
+        sig_status = info.get('signature', 'N/A')
+        if sig_status == 'Valid':
+            self._info_rows['signature'].set_value(t.get("val_valid"))
+            self._info_rows['signature'].lbl_value.setStyleSheet("color: #4caf50; font-weight: bold;")
+        elif sig_status == 'Invalid':
+            self._info_rows['signature'].set_value(t.get("val_invalid"))
+            self._info_rows['signature'].lbl_value.setStyleSheet("color: #f44336; font-weight: bold;")
+        else:
+            self._info_rows['signature'].set_value(unk)
+            self._info_rows['signature'].lbl_value.setStyleSheet("")
+
         self._info_rows['password_protected'].set_value(
             yes if info.get('password_protected') else no
         )
@@ -224,6 +270,15 @@ class ReadTab(QWidget):
             yes if info.get('read_only_capable') else (no if 'read_only_capable' in info else unk)
         )
 
+        # Registry Info
+        reg = info.get('registry_info')
+        if reg:
+            self.lbl_registry_title.setText(t.get("registry_found", reg['card_number'], reg['domain']))
+            self.lbl_registry_update.setText(t.get("registry_last_update", reg['updated_at']))
+            self.frame_registry.setVisible(True)
+        else:
+            self.frame_registry.setVisible(False)
+
         # NDEF records
         self._populate_ndef_records(info.get('ndef_records', []))
 
@@ -239,9 +294,12 @@ class ReadTab(QWidget):
         self.txt_uid.clear()
         self.txt_read_data.clear()
         self.txt_memory_dump.clear()
+        self.frame_registry.setVisible(False)
 
         for row in self._info_rows.values():
             row.set_value("")
+            if hasattr(row, 'lbl_value'):
+                row.lbl_value.setStyleSheet("")
 
         self._clear_ndef_section()
         self.lbl_no_ndef.show()
@@ -352,6 +410,14 @@ class ReadTab(QWidget):
                     Qt.TextInteractionFlag.TextSelectableByMouse
                 )
                 content_label.setIndent(16)
+                content_label.setCursor(Qt.CursorShape.PointingHandCursor)
+                content_label.setToolTip("انقر للنسخ / Click to copy")
+
+                # Make it clickable to copy
+                def make_copy_fn(text):
+                    return lambda event: QApplication.clipboard().setText(text)
+                content_label.mousePressEvent = make_copy_fn(content)
+
                 self._ndef_layout.addWidget(content_label)
 
     # ------------------------------------------------------------------
@@ -371,6 +437,7 @@ class ReadTab(QWidget):
             'serial_number':     'lbl_serial_number',
             'atqa':              'lbl_atqa',
             'sak':               'lbl_sak',
+            'signature':         'lbl_signature',
             'password_protected':'lbl_password_protected',
             'memory_info':       'lbl_memory_info',
             'data_format':       'lbl_data_format',
@@ -385,4 +452,3 @@ class ReadTab(QWidget):
         self.lbl_data.setText(self.translator.get("lbl_data"))
         self.lbl_read_block.setText(self.translator.get("lbl_block"))
         self.btn_read.setText(self.translator.get("btn_read"))
-
