@@ -3,6 +3,8 @@ translations = {
         "app_title": "مدير قارئ ACR122U NFC",
         "tab_read": "قراءة البطاقة",
         "tab_write": "الكتابة على البطاقة",
+        "tab_other": "عمليات",
+        "tab_cards": "بطاقاتي",
         "tab_security": "الحماية والصلاحيات",
         "tab_emulation": "محاكاة لوحة المفاتيح",
         "tab_settings": "الإعدادات",
@@ -38,10 +40,13 @@ translations = {
         "lbl_size": "الحجم:",
         "lbl_writable": "قابلة للكتابة:",
         "lbl_read_only_capable": "يمكن جعلها للقراءة فقط:",
+        "lbl_signature": "التوقيع:",
         "val_yes": "نعم",
         "val_no": "لا",
         "val_unknown": "غير معروف",
         "val_none": "لا يوجد",
+        "val_valid": "صحيح ✓",
+        "val_invalid": "غير صحيح",
 
         # NDEF records section
         "section_ndef": "سجلات NDEF",
@@ -71,6 +76,30 @@ translations = {
         "err_text_empty": "النص فارغ، يرجى إدخال نص أو كلمة مرور.",
         "err_text_too_long": "النص طويل جداً ({} بايت). الحد الأقصى {} بايت لهذا النوع من البطاقات.",
         "log_write_text_success": "✅ تم كتابة النص بنجاح ({} صفحة).",
+
+        # OTHER tab
+        "other_copy_tag": "نسخ البطاقة",
+        "other_erase_tag": "مسح البطاقة",
+        "other_set_password": "تعيين كلمة المرور",
+        "other_remove_password": "إزالة كلمة المرور",
+        "other_lock_tag": "قفل البطاقة (نهائي)",
+        "other_copy_desc": "اقرأ محتوى البطاقة الحالية ثم ضع بطاقة أخرى لكتابة المحتوى عليها.",
+        "other_erase_desc": "مسح كل محتوى NDEF من البطاقة.",
+        "other_lock_desc": "جعل البطاقة للقراءة فقط للأبد. هذا الإجراء لا يمكن التراجع عنه!",
+        "btn_start": "بدء",
+        "waiting_for_tag": "ضع البطاقة على القارئ...",
+        "operation_success": "تمت العملية بنجاح ✓",
+
+        # CARDS tab
+        "cards_number": "رقم البطاقة",
+        "cards_uid": "الرقم التسلسلي",
+        "cards_domain": "الدومين/الخدمة",
+        "cards_note": "ملاحظة",
+        "btn_add_card": "إضافة/تحديث بطاقة",
+        "btn_delete_card": "حذف",
+        "registry_title": "إدارة سجل البطاقات",
+        "registry_found": "🔖 بطاقة #{} — {}",
+        "registry_last_update": "آخر تحديث: {}",
 
         # Advanced raw write section
         "section_write_raw": "🔧 كتابة كتلة خام (متقدم)",
@@ -144,6 +173,8 @@ translations = {
         "app_title": "ACR122U NFC Reader Manager",
         "tab_read": "Read Card",
         "tab_write": "Write Card",
+        "tab_other": "Other",
+        "tab_cards": "My Cards",
         "tab_security": "Security & Permissions",
         "tab_emulation": "Keyboard Emulation",
         "tab_settings": "Settings",
@@ -179,10 +210,13 @@ translations = {
         "lbl_size": "Size:",
         "lbl_writable": "Writable:",
         "lbl_read_only_capable": "Can be made Read-Only:",
+        "lbl_signature": "Signature:",
         "val_yes": "Yes",
         "val_no": "No",
         "val_unknown": "Unknown",
         "val_none": "None",
+        "val_valid": "Valid ✓",
+        "val_invalid": "Invalid",
 
         # NDEF records section
         "section_ndef": "NDEF Records",
@@ -212,6 +246,30 @@ translations = {
         "err_text_empty": "Text is empty. Please enter a text or password.",
         "err_text_too_long": "Text is too long ({} bytes). Maximum {} bytes for this card type.",
         "log_write_text_success": "✅ Text written successfully ({} pages).",
+
+        # OTHER tab
+        "other_copy_tag": "Copy Tag",
+        "other_erase_tag": "Erase Tag",
+        "other_set_password": "Set Password",
+        "other_remove_password": "Remove Password",
+        "other_lock_tag": "Lock Tag (Irreversible)",
+        "other_copy_desc": "Read current tag and then place another tag to write the content.",
+        "other_erase_desc": "Erase all NDEF content from the tag.",
+        "other_lock_desc": "Make the tag permanently read-only. This action is irreversible!",
+        "btn_start": "Start",
+        "waiting_for_tag": "Place tag on reader...",
+        "operation_success": "Operation successful ✓",
+
+        # CARDS tab
+        "cards_number": "Card #",
+        "cards_uid": "UID",
+        "cards_domain": "Domain/Service",
+        "cards_note": "Note",
+        "btn_add_card": "Add/Update Card",
+        "btn_delete_card": "Delete",
+        "registry_title": "Card Registry Management",
+        "registry_found": "🔖 Card #{} — {}",
+        "registry_last_update": "Last update: {}",
 
         # Advanced raw write section
         "section_write_raw": "🔧 Write Raw Block (Advanced)",

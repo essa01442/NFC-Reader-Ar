@@ -250,6 +250,22 @@ class NFCReaderManager(QObject):
 
             # Step 2 – collect rich card info and emit card_info_ready
             info = self._collect_card_info(uid_data)
+
+            # Check for card in registry
+            try:
+                from database import DatabaseManager
+                db = DatabaseManager()
+                card = db.get_card_from_registry(uid)
+                if card:
+                    info['registry_info'] = {
+                        'card_number': card.card_number,
+                        'domain': card.domain,
+                        'note': card.note,
+                        'updated_at': card.updated_at.strftime("%Y-%m-%d") if card.updated_at else ""
+                    }
+            except Exception:
+                pass
+
             self.card_info_ready.emit(info)
 
         except CardConnectionException as e:
@@ -282,6 +298,7 @@ class NFCReaderManager(QObject):
             'ndef_used': 0,
             'ndef_available': 0,
             'password_protected': False,
+            'signature': 'N/A',
         }
 
         try:
@@ -312,6 +329,11 @@ class NFCReaderManager(QObject):
                 # Determine used NDEF bytes from TLV at start of user area
                 ndef_used = self._get_ndef_message_length(all_pages, start_page=4)
                 info['ndef_used'] = ndef_used
+
+                # Get Signature
+                valid, sig_hex = self.get_ntag_signature()
+                info['signature'] = 'Valid' if valid else 'Invalid'
+                info['signature_hex'] = sig_hex
         else:
             # Fallback: ATR may have misidentified an NTAG card.  Attempt a
             # Type 2 page read starting at page 0 (using NTAG216 max pages so
@@ -334,10 +356,95 @@ class NFCReaderManager(QObject):
                     info['ndef_records'] = ndef_records
                     ndef_used = self._get_ndef_message_length(all_pages, start_page=4)
                     info['ndef_used'] = ndef_used
+
+                    # Get Signature
+                    valid, sig_hex = self.get_ntag_signature()
+                    info['signature'] = 'Valid' if valid else 'Invalid'
+                    info['signature_hex'] = sig_hex
             except Exception:
                 pass
 
         return info
+
+    def get_ntag_signature(self) -> tuple[bool, str]:
+        """Request NTAG Originality Signature via APDU 0x3C 00.
+
+        Returns: (is_valid: bool, signature_hex: str)
+        """
+        if not self.connection:
+            return False, ""
+
+        try:
+            # APDU for ACR122U: FF 00 00 00 05 D4 42 01 3C 00
+            # (InDataExchange: cmd=0x3C, addr=0x00)
+            SIGNATURE_APDU = [0xFF, 0x00, 0x00, 0x00, 0x05, 0xD4, 0x42, 0x01, 0x3C, 0x00]
+            data, sw1, sw2 = self.connection.transmit(SIGNATURE_APDU)
+
+            # ACR122U InDataExchange response: [0xD5, 0x43, 0x00, <32 bytes signature>, SW1, SW2]
+            # Actually some readers return the 32 bytes + SW1 SW2 directly if they handle the wrap
+
+            if sw1 == 0x90:
+                # If using InDataExchange, data starts with D5 43 00
+                if len(data) >= 35 and data[0] == 0xD5 and data[1] == 0x43:
+                    sig = data[3:35]
+                    return True, toHexString(list(sig))
+                elif len(data) == 32:
+                    return True, toHexString(data)
+
+            return False, toHexString(data)
+        except Exception:
+            return False, ""
+
+    def erase_tag(self):
+        """Erase NDEF content and clear user memory."""
+        if not self.connection:
+            raise Exception("No card connected")
+
+        tag_type = self._get_current_tag_type()
+        _, _, pwd_page, _ = self._get_ntag_config_pages(tag_type)
+
+        # 1. Write TLV Terminator (0xFE) on page 4 to invalidate NDEF
+        self.write_block(4, [0xFE, 0x00, 0x00, 0x00])
+
+        # 2. Clear remaining user pages with zeros
+        for page in range(5, pwd_page):
+            try:
+                self.write_block(page, [0x00, 0x00, 0x00, 0x00])
+            except Exception:
+                break
+        return True
+
+    def copy_tag_read(self) -> bytes:
+        """Read pages 4-134 (for NTAG215) and return as bytes."""
+        if not self.connection:
+            raise Exception("No card connected")
+
+        tag_type = self._get_current_tag_type()
+        _, _, pwd_page, _ = self._get_ntag_config_pages(tag_type)
+        # We read up to pwd_page (not including config/password pages)
+
+        all_data = bytearray()
+        for page in range(4, pwd_page):
+            data = self.read_block(page)
+            # read_block might return 16 bytes (4 pages) if it succeeds with first attempt
+            # or 4 bytes if it falls back.
+            if len(data) >= 4:
+                all_data.extend(data[:4])
+            else:
+                break
+        return bytes(all_data)
+
+    def copy_tag_write(self, data: bytes):
+        """Write saved bytes to card starting at page 4."""
+        if not self.connection:
+            raise Exception("No card connected")
+
+        for i in range(0, len(data), 4):
+            page_idx = 4 + (i // 4)
+            chunk = list(data[i:i+4])
+            if len(chunk) < 4:
+                chunk += [0x00] * (4 - len(chunk))
+            self.write_block(page_idx, chunk)
 
     def _read_all_pages_type2(self, card_info):
         """Read the full memory of an NFC Forum Type 2 tag (NTAG/Ultralight).
